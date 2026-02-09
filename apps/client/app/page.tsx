@@ -1,6 +1,8 @@
+'use client';
+
 import { useState } from 'react';
-import TravelAgentWindow from './components/TravelAgentWindow';
-import ItineraryTimeline from './components/ItineraryTimeline';
+import TravelAgentWindow from '../components/TravelAgentWindow';
+import ItineraryTimeline from '../components/ItineraryTimeline';
 
 export default function Home() {
   const [currentPlan, setCurrentPlan] = useState(null);

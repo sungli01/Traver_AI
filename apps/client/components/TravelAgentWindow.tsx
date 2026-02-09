@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from 'react';
 import { MessageSquare, Paperclip, Link as LinkIcon, Send } from 'lucide-react';
 
