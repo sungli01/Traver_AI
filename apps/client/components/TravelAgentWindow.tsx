@@ -3,7 +3,11 @@
 import React, { useState } from 'react';
 import { MessageSquare, Paperclip, Link as LinkIcon, Send } from 'lucide-react';
 
-export default function TravelAgentWindow() {
+interface TravelAgentWindowProps {
+  onPlanGenerated: (plan: any) => void;
+}
+
+export default function TravelAgentWindow({ onPlanGenerated }: TravelAgentWindowProps) {
   const [messages, setMessages] = useState([
     { role: 'assistant', content: '안녕하세요! 여행 계획서나 관련 링크를 이곳에 던져주세요. 제가 바로 일정표로 만들어 드릴게요!' }
   ]);
