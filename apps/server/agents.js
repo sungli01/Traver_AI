@@ -11,8 +11,8 @@ const anthropic = new Anthropic({
 async function processAgentRequest(message, context = []) {
   try {
     const response = await anthropic.messages.create({
-      model: "claude-3-opus-20240229",
-      max_tokens: 1024,
+      model: "claude-opus-4-6",
+      max_tokens: 2048,
       system: `당신은 Skywork Voyage Intelligence의 전문 Travel 에이전트입니다. 
       당신의 핵심 임무는 사용자가 제공하는 텍스트, 링크, 파일 내용을 분석하여 구조화된 '여행 일정표'를 만드는 것입니다.
       - 사용자가 자료를 던지면, 이를 분석하여 즉시 Day-by-Day 일정표를 제안하십시오.

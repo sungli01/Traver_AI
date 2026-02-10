@@ -17,38 +17,47 @@ export default function TravelAgentWindow({ onPlanGenerated }: TravelAgentWindow
     setMessages(prev => [...prev, { role: 'user', content }]);
     setInput('');
 
-    // 시뮬레이션: 1.5초 후 에이전트의 분석 결과가 도착하는 것을 재현
-    setTimeout(() => {
-      const samplePlan = {
-        id: "tokyo-001",
-        title: "도쿄 비즈니스 & 여행",
-        destination: "Tokyo, Japan",
-        itinerary: [
-          {
-            day: 1,
-            activities: [
-              { time: "11:30", description: "나리타 공항 도착 (LH710)", location: "Narita Airport", cost: 35000 },
-              { time: "14:00", description: "호텔 체크인 및 짐 보관", location: "Shibuya Stream Excel Hotel", cost: 0 },
-              { time: "18:00", description: "시부야 스카이 전망대 관람", location: "Shibuya Sky", cost: 22000 }
-            ]
-          },
-          {
-            day: 2,
-            activities: [
-              { time: "10:00", description: "팀랩 플래닛 전시회", location: "Toyosu teamLab", cost: 38000 },
-              { time: "13:00", description: "츠키지 시장 초밥 점심", location: "Tsukiji Market", cost: 45000 }
-            ]
-          }
-        ]
-      };
-      
+    // Backend API 호출
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const response = await fetch(`${apiUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: content,
+          context: messages.slice(-5) // 최근 5개 메시지만 컨텍스트로 전달
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const reply = data.reply || '응답을 받지 못했습니다.';
+
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: '분석이 완료되었습니다! 도쿄 2일차까지의 일정을 대시보드에 구성해 드렸습니다. 추가하고 싶은 링크가 더 있으신가요?' 
+        content: reply
       }]);
-      
-      if (onPlanGenerated) onPlanGenerated(samplePlan);
-    }, 1500);
+
+      // JSON 파싱 시도 (일정표 데이터 추출)
+      try {
+        const jsonMatch = reply.match(/\{[\s\S]*"itinerary"[\s\S]*\}/);
+        if (jsonMatch && onPlanGenerated) {
+          const plan = JSON.parse(jsonMatch[0]);
+          onPlanGenerated(plan);
+        }
+      } catch (e) {
+        console.log('No structured plan found in response');
+      }
+    } catch (error) {
+      console.error('Chat error:', error);
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: '서버와 연결할 수 없습니다. 잠시 후 다시 시도해주세요.'
+      }]);
+    }
   };
 
   return (
