@@ -13,19 +13,21 @@ export default function TravelAgentWindow({ onPlanGenerated }: TravelAgentWindow
   ]);
   const [input, setInput] = useState('');
 
-  const handleSend = async (content) => {
+    const handleSend = async (content) => {
+    if (!content.trim()) return;
     setMessages(prev => [...prev, { role: 'user', content }]);
     setInput('');
 
     // Backend API 호출
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      // 실서버 주소 강제 고정
+      const apiUrl = 'https://traver-ai-production-4599.up.railway.app';
       const response = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: content,
-          context: messages.slice(-5) // 최근 5개 메시지만 컨텍스트로 전달
+          context: messages.slice(-5) 
         })
       });
 
