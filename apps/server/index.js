@@ -4,7 +4,11 @@ const { processAgentRequest } = require('./agents');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: '*', // 모든 도메인에서의 접속을 임시로 허용하여 연결 안정성 확보
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type']
+}));
 app.use(express.json());
 
 app.get('/health', (req, res) => {
