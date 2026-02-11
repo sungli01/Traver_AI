@@ -27,7 +27,7 @@
 ### 1-3. URL 확인
 - **Deployments** 탭 → 배포 완료 확인
 - **Settings** 탭 → **Public Networking** → URL 복사
-- 예: `https://traver-ai-production.up.railway.app`
+- 예: `https://traver-ai-production-4599.up.railway.app`
 - **이 URL을 메모!** (2단계에서 사용)
 
 ---
