@@ -27,7 +27,7 @@ async function processAgentRequest(message, context = []) {
     return response.content[0].text;
   } catch (error) {
     console.error("Agent Error:", error);
-    return "요청을 처리하는 중 에이전트에 오류가 발생했습니다.";
+    return "Agent Error: " + error.message;
   }
 }
 
