@@ -232,7 +232,8 @@ export function Layout({ children }: LayoutProps) {
 
         {/* Footer Info (Optional) */}
         <footer className="p-4 text-center text-xs text-muted-foreground border-t border-border/50">
-          © 2026 TravelAgent AI Systems. 모든 권리 보유. | 자율 에이전트 엔진 v2.4.0
+          <span className="hidden sm:inline">© 2026 TravelAgent AI Systems. 모든 권리 보유. | 자율 에이전트 엔진 v2.4.0</span>
+          <span className="sm:hidden">© 2026 TravelAgent AI</span>
         </footer>
       </div>
 

@@ -53,7 +53,7 @@ export default function Security() {
               <p className="text-muted-foreground">개인정보 보호 및 블록체인 보안 관리</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4">
             <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-500">
               보안 점수: {securityMetrics.overallScore}/100
             </Badge>
@@ -70,7 +70,7 @@ export default function Security() {
       </motion.div>
 
       <Tabs defaultValue="pii-masking" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="pii-masking">PII 마스킹</TabsTrigger>
           <TabsTrigger value="masking-logs">마스킹 이력</TabsTrigger>
           <TabsTrigger value="blockchain">블록체인 증명</TabsTrigger>

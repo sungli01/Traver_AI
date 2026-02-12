@@ -170,12 +170,13 @@ export default function Payment() {
                 </Button>
               </CardHeader>
               <CardContent>
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="w-[120px]">날짜</TableHead>
                       <TableHead>항목</TableHead>
-                      <TableHead>금액</TableHead>
+                      <TableHead className="hidden sm:table-cell">금액</TableHead>
                       <TableHead className="text-right">상태</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -191,7 +192,7 @@ export default function Payment() {
                             <span className="text-[10px] text-muted-foreground uppercase">{tx.category} • {tx.card}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-semibold">
+                        <TableCell className="font-semibold hidden sm:table-cell">
                           {tx.amount > 0 ? formatCurrency(tx.amount) : '예약 확인 중'}
                         </TableCell>
                         <TableCell className="text-right">
@@ -210,6 +211,7 @@ export default function Payment() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           </motion.section>

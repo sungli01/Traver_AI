@@ -163,7 +163,7 @@ export default function Blockchain() {
       </motion.div>
 
       <Tabs defaultValue="transactions" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="flex w-full overflow-x-auto">
           <TabsTrigger value="transactions">블록체인 거래</TabsTrigger>
           <TabsTrigger value="zk-proofs">영지식 증명</TabsTrigger>
           <TabsTrigger value="certificates">증명서 관리</TabsTrigger>
@@ -179,13 +179,14 @@ export default function Blockchain() {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>거래 유형</TableHead>
                     <TableHead>해시</TableHead>
-                    <TableHead>블록 번호</TableHead>
-                    <TableHead>시간</TableHead>
+                    <TableHead className="hidden sm:table-cell">블록 번호</TableHead>
+                    <TableHead className="hidden md:table-cell">시간</TableHead>
                     <TableHead>금액</TableHead>
                     <TableHead>상태</TableHead>
                     <TableHead>액션</TableHead>
@@ -198,8 +199,8 @@ export default function Blockchain() {
                       <TableCell className="font-mono text-sm">
                         {tx.hash.slice(0, 10)}...{tx.hash.slice(-8)}
                       </TableCell>
-                      <TableCell>{tx.blockNumber.toLocaleString()}</TableCell>
-                      <TableCell className="text-sm">{tx.timestamp}</TableCell>
+                      <TableCell className="hidden sm:table-cell">{tx.blockNumber.toLocaleString()}</TableCell>
+                      <TableCell className="text-sm hidden md:table-cell">{tx.timestamp}</TableCell>
                       <TableCell>{tx.amount}</TableCell>
                       <TableCell>
                         <Badge className={getStatusColor(tx.status)}>
@@ -218,6 +219,7 @@ export default function Blockchain() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

@@ -94,7 +94,7 @@ export default function Settings() {
 
       <Tabs defaultValue="profile" className="w-full">
         <div className="grid grid-cols-1 lg:grid-cols-[250px_1fr] gap-8">
-          <TabsList className="flex flex-col h-auto bg-transparent border-none space-y-1 p-0">
+          <TabsList className="flex flex-row lg:flex-col h-auto bg-transparent border-none gap-1 lg:space-y-1 p-0 overflow-x-auto">
             <TabsTrigger 
               value="profile" 
               className="justify-start w-full px-4 py-3 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"

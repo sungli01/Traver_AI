@@ -141,7 +141,7 @@ export function TravelChatWindow() {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-4 right-4 z-50 w-[380px] h-[520px] flex flex-col rounded-2xl border border-border bg-background shadow-2xl overflow-hidden"
+            className="fixed bottom-0 right-0 left-0 sm:left-auto sm:bottom-4 sm:right-4 z-50 w-[calc(100vw)] sm:w-[380px] h-[calc(100dvh-4rem)] sm:h-[520px] flex flex-col rounded-t-2xl sm:rounded-2xl border border-border bg-background shadow-2xl overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-primary/5">

@@ -51,21 +51,21 @@ export default function Agents() {
   const selectedAgent = sampleAgents.find((a) => a.id === selectedAgentId);
 
   return (
-    <div className="flex flex-col gap-8 p-6 lg:p-10 max-w-7xl mx-auto">
+    <div className="flex flex-col gap-8 p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-accent">
             <Bot className="w-5 h-5" />
             <span className="text-sm font-semibold uppercase tracking-wider">Multi-Agent System</span>
           </div>
-          <h1 className="text-4xl font-bold tracking-tight">AI 에이전트 센터</h1>
+          <h1 className="text-2xl sm:text-4xl font-bold tracking-tight">AI 에이전트 센터</h1>
           <p className="text-muted-foreground text-lg">
             2026년형 지능형 에이전트들이 당신의 여행을 실시간으로 관리하고 있습니다.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative w-full md:w-64">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="에이전트 검색..." className="pl-10" />
           </div>
@@ -114,13 +114,13 @@ export default function Agents() {
                   </div>
                   <TabsList className="bg-background/50 border">
                     <TabsTrigger value="performance" className="gap-2">
-                      <Zap className="w-4 h-4" /> 성능
+                      <Zap className="w-4 h-4" /> <span className="hidden sm:inline">성능</span>
                     </TabsTrigger>
                     <TabsTrigger value="history" className="gap-2">
-                      <History className="w-4 h-4" /> 히스토리
+                      <History className="w-4 h-4" /> <span className="hidden sm:inline">히스토리</span>
                     </TabsTrigger>
                     <TabsTrigger value="security" className="gap-2">
-                      <ShieldCheck className="w-4 h-4" /> 보안/권한
+                      <ShieldCheck className="w-4 h-4" /> <span className="hidden sm:inline">보안/권한</span>
                     </TabsTrigger>
                   </TabsList>
                 </div>

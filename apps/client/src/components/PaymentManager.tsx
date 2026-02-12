@@ -76,7 +76,7 @@ function CardItem({ card, isSelected, onClick, compact = false }: CardItemProps)
         "relative cursor-pointer rounded-2xl p-5 transition-all duration-300 overflow-hidden",
         "border-2",
         isSelected ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-muted-foreground/30",
-        compact ? "h-40 w-full" : "h-48 w-full max-w-sm",
+        compact ? "h-40 w-full" : "h-48 w-full",
         "bg-gradient-to-br from-card to-muted/30"
       )}
     >

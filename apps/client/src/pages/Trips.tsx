@@ -86,14 +86,14 @@ export default function Trips() {
       {/* 상단 헤더 영역 */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-1">
-          <h1 className="text-4xl font-bold tracking-tight text-foreground">내 여행 관리</h1>
+          <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-foreground">내 여행 관리</h1>
           <p className="text-muted-foreground text-lg">
             2026년의 모든 여행 계획과 예약 상태를 에이전트와 함께 관리하세요.
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button size="lg" className="rounded-2xl gap-2 shadow-xl shadow-primary/25 h-14 px-8 text-base font-semibold transition-transform hover:scale-[1.02] active:scale-[0.98]">
+            <Button size="lg" className="w-full sm:w-auto rounded-2xl gap-2 shadow-xl shadow-primary/25 h-14 px-8 text-base font-semibold transition-transform hover:scale-[1.02] active:scale-[0.98]">
               <Plus className="w-6 h-6" />
               새 여행 계획하기
             </Button>
@@ -144,7 +144,7 @@ export default function Trips() {
       {/* 필터 및 검색 바 */}
       <div className="flex flex-col lg:flex-row items-center justify-between gap-4 bg-muted/20 p-2.5 rounded-[2rem] border border-border/40">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full lg:w-auto">
-          <TabsList className="grid grid-cols-4 lg:flex h-12 bg-transparent gap-1.5 p-1">
+          <TabsList className="flex overflow-x-auto h-12 bg-transparent gap-1.5 p-1 w-full">
             {['all', 'planning', 'confirmed', 'completed'].map((tab) => (
               <TabsTrigger 
                 key={tab} 
@@ -182,7 +182,7 @@ export default function Trips() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.98 }} 
             animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center justify-center py-40 text-center space-y-6"
+            className="flex flex-col items-center justify-center py-16 sm:py-40 text-center space-y-6"
           >
             <div className="p-10 rounded-[3rem] bg-muted/10 border border-dashed border-muted-foreground/20">
               <Calendar className="w-20 h-20 text-muted-foreground opacity-20" />
