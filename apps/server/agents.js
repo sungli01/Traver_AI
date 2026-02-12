@@ -5,6 +5,10 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+// Knowledge DB integration
+let retriever = null;
+try { retriever = require('./retriever'); } catch (e) { /* DB not available */ }
+
 /**
  * Concierge Agent: 사용자의 요청을 분석하고 적절한 에이전트에게 전달
  */
@@ -168,4 +172,70 @@ async function processAgentRequest(message, context = []) {
   }
 }
 
-module.exports = { processAgentRequest };
+// Extract city names from user message for DB context injection
+function extractCityFromMessage(message) {
+  // Common travel cities (Korean + English)
+  const cityPatterns = [
+    /(?:도쿄|tokyo)/i, /(?:오사카|osaka)/i, /(?:교토|kyoto)/i, /(?:후쿠오카|fukuoka)/i,
+    /(?:방콕|bangkok)/i, /(?:파리|paris)/i, /(?:런던|london)/i, /(?:뉴욕|new\s?york)/i,
+    /(?:하노이|hanoi)/i, /(?:호치민|ho\s?chi\s?minh)/i, /(?:다낭|danang)/i,
+    /(?:발리|bali)/i, /(?:싱가포르|singapore)/i, /(?:홍콩|hong\s?kong)/i,
+    /(?:타이베이|taipei)/i, /(?:세부|cebu)/i, /(?:치앙마이|chiang\s?mai)/i,
+    /(?:바르셀로나|barcelona)/i, /(?:로마|rome|roma)/i, /(?:프라하|prague)/i,
+    /(?:비엔나|vienna)/i, /(?:암스테르담|amsterdam)/i, /(?:라오스|luang\s?prabang)/i,
+    /(?:시드니|sydney)/i, /(?:멜버른|melbourne)/i, /(?:제주|jeju)/i,
+    /(?:부산|busan)/i, /(?:강릉|gangneung)/i, /(?:여수|yeosu)/i,
+  ];
+  const cityMap = {
+    '도쿄': { city: '도쿄', country: '일본' }, 'tokyo': { city: '도쿄', country: '일본' },
+    '오사카': { city: '오사카', country: '일본' }, 'osaka': { city: '오사카', country: '일본' },
+    '교토': { city: '교토', country: '일본' }, 'kyoto': { city: '교토', country: '일본' },
+    '후쿠오카': { city: '후쿠오카', country: '일본' }, 'fukuoka': { city: '후쿠오카', country: '일본' },
+    '방콕': { city: '방콕', country: '태국' }, 'bangkok': { city: '방콕', country: '태국' },
+    '파리': { city: '파리', country: '프랑스' }, 'paris': { city: '파리', country: '프랑스' },
+    '런던': { city: '런던', country: '영국' }, 'london': { city: '런던', country: '영국' },
+    '뉴욕': { city: '뉴욕', country: '미국' }, 'new york': { city: '뉴욕', country: '미국' },
+    '하노이': { city: '하노이', country: '베트남' }, 'hanoi': { city: '하노이', country: '베트남' },
+    '호치민': { city: '호치민', country: '베트남' }, 'ho chi minh': { city: '호치민', country: '베트남' },
+    '다낭': { city: '다낭', country: '베트남' }, 'danang': { city: '다낭', country: '베트남' },
+    '발리': { city: '발리', country: '인도네시아' }, 'bali': { city: '발리', country: '인도네시아' },
+    '싱가포르': { city: '싱가포르', country: '싱가포르' }, 'singapore': { city: '싱가포르', country: '싱가포르' },
+    '홍콩': { city: '홍콩', country: '홍콩' }, 'hong kong': { city: '홍콩', country: '홍콩' },
+    '타이베이': { city: '타이베이', country: '대만' }, 'taipei': { city: '타이베이', country: '대만' },
+    '세부': { city: '세부', country: '필리핀' }, 'cebu': { city: '세부', country: '필리핀' },
+    '치앙마이': { city: '치앙마이', country: '태국' }, 'chiang mai': { city: '치앙마이', country: '태국' },
+    '바르셀로나': { city: '바르셀로나', country: '스페인' }, 'barcelona': { city: '바르셀로나', country: '스페인' },
+    '로마': { city: '로마', country: '이탈리아' }, 'rome': { city: '로마', country: '이탈리아' },
+    '프라하': { city: '프라하', country: '체코' }, 'prague': { city: '프라하', country: '체코' },
+    '시드니': { city: '시드니', country: '호주' }, 'sydney': { city: '시드니', country: '호주' },
+    '제주': { city: '제주', country: '한국' }, 'jeju': { city: '제주', country: '한국' },
+    '부산': { city: '부산', country: '한국' }, 'busan': { city: '부산', country: '한국' },
+  };
+  const lower = message.toLowerCase();
+  for (const [key, value] of Object.entries(cityMap)) {
+    if (lower.includes(key)) return value;
+  }
+  return null;
+}
+
+// Enhanced version that injects DB context
+async function processAgentRequestWithKnowledge(message, context = []) {
+  if (!retriever) return processAgentRequest(message, context);
+
+  try {
+    const cityInfo = extractCityFromMessage(message);
+    if (cityInfo) {
+      const dbContext = await retriever.buildContext(cityInfo.city, cityInfo.country);
+      if (dbContext) {
+        // Inject context as a system-level hint appended to user message
+        const enrichedMessage = message + dbContext;
+        return processAgentRequest(enrichedMessage, context);
+      }
+    }
+  } catch (err) {
+    console.error('[Knowledge] Context injection error:', err.message);
+  }
+  return processAgentRequest(message, context);
+}
+
+module.exports = { processAgentRequest, processAgentRequestWithKnowledge };
