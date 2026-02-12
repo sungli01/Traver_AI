@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { IMAGES } from '@/assets/images';
+import { TravelChatWindow } from '@/components/TravelChatWindow';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -234,6 +235,9 @@ export function Layout({ children }: LayoutProps) {
           © 2026 TravelAgent AI Systems. 모든 권리 보유. | 자율 에이전트 엔진 v2.4.0
         </footer>
       </div>
+
+      {/* Global Chat Window */}
+      <TravelChatWindow />
     </div>
   );
 }
