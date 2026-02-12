@@ -37,6 +37,8 @@ async function processAgentRequest(message, context = []) {
         {
           "time": "09:00",
           "title": "인천공항 출발",
+          "lat": 37.4602,
+          "lng": 126.4407,
           "description": "대한항공 KE713편",
           "category": "transport",
           "cost": "350,000원",
@@ -46,6 +48,8 @@ async function processAgentRequest(message, context = []) {
         {
           "time": "12:00",
           "title": "이치란 라멘 본점",
+          "lat": 33.5902,
+          "lng": 130.4017,
           "description": "하카타 톤코츠 라멘의 원조",
           "category": "restaurant",
           "cost": "15,000원",
@@ -56,6 +60,8 @@ async function processAgentRequest(message, context = []) {
         {
           "time": "14:00",
           "title": "센소지 (浅草寺)",
+          "lat": 35.7148,
+          "lng": 139.7967,
           "description": "도쿄에서 가장 오래된 사찰. 나카미세 거리 쇼핑도 함께.",
           "category": "attraction",
           "cost": "무료",
@@ -65,6 +71,8 @@ async function processAgentRequest(message, context = []) {
         {
           "time": "18:00",
           "title": "시부야 스카이",
+          "lat": 35.6580,
+          "lng": 139.7016,
           "description": "시부야 스크램블 스퀘어 전망대에서 도쿄 야경",
           "category": "attraction",
           "cost": "25,000원",
@@ -74,6 +82,8 @@ async function processAgentRequest(message, context = []) {
         {
           "time": "20:00",
           "title": "신주쿠 오모이데 요코초",
+          "lat": 35.6938,
+          "lng": 139.6989,
           "description": "현지 분위기 가득한 골목 이자카야",
           "category": "restaurant",
           "cost": "30,000원",
@@ -83,6 +93,8 @@ async function processAgentRequest(message, context = []) {
       "accommodation": {
         "name": "호텔 그레이서리 신주쿠",
         "cost": "120,000원/박",
+        "lat": 35.6940,
+        "lng": 139.7013,
         "link": "https://gracery.com/shinjuku",
         "linkLabel": "호텔 예약"
       },
@@ -102,6 +114,7 @@ async function processAgentRequest(message, context = []) {
 
 ## 필수 사항
 1. 각 활동에 예상 비용(cost) 반드시 포함 (한국 원화 기준)
+8. 각 활동에 lat, lng (위도, 경도) 반드시 포함 — 지도 표시용. 정확한 좌표를 사용하라.
 2. 식당은 signature 필드에 시그니처 메뉴 / 추천 메뉴 필수
 3. 가능한 한 실제 존재하는 장소의 공식 링크(link) 포함
 4. 숙소 정보는 각 day의 accommodation에 포함 (link 포함)

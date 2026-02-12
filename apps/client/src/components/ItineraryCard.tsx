@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useState, useMemo, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plane, UtensilsCrossed, MapPin, ShoppingBag, Sparkles, Coffee,
   ExternalLink, Hotel, ChevronDown, ChevronUp,
-  CalendarDays, Wallet, Star, Navigation, Plus, StickyNote, Check
+  CalendarDays, Wallet, Star, Navigation, Plus, StickyNote, Check,
+  Map as MapIcon, BarChart3
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+
+// Lazy load map to avoid SSR issues with Leaflet
+const ItineraryMap = lazy(() => import('./ItineraryMap').then(m => ({ default: m.ItineraryMap })));
 
 interface Activity {
   time: string;
@@ -17,6 +21,8 @@ interface Activity {
   link?: string;
   linkLabel?: string;
   signature?: string;
+  lat?: number;
+  lng?: number;
 }
 
 interface Accommodation {
@@ -24,6 +30,8 @@ interface Accommodation {
   cost: string;
   link?: string;
   linkLabel?: string;
+  lat?: number;
+  lng?: number;
 }
 
 interface Day {
@@ -265,9 +273,72 @@ function DaySection({ dayData, destination, isExpanded, onToggle }: { dayData: D
 }
 
 /* ── Main ItineraryCard ── */
+function parseCost(cost: string): number {
+  const num = cost.replace(/[^0-9]/g, '');
+  return parseInt(num, 10) || 0;
+}
+
+function CostSummary({ data }: { data: Itinerary }) {
+  const totalParsed = parseCost(data.totalBudget);
+  const dayBreakdown = data.days.map(d => ({
+    day: d.day,
+    date: d.date,
+    cost: parseCost(d.dailyCost),
+    activities: d.activities.length,
+  }));
+  const actualTotal = dayBreakdown.reduce((sum, d) => sum + d.cost, 0);
+  const overBudget = totalParsed > 0 && actualTotal > totalParsed;
+
+  return (
+    <div className="px-4 py-3 space-y-2">
+      <div className="flex items-center gap-2 mb-2">
+        <BarChart3 className="w-4 h-4 text-primary" />
+        <span className="text-sm font-bold">비용 점검</span>
+      </div>
+      {dayBreakdown.map(d => (
+        <div key={d.day} className="flex items-center justify-between text-xs">
+          <span className="text-gray-600">Day {d.day} ({d.date})</span>
+          <span className="font-mono font-semibold">{d.cost.toLocaleString()}원</span>
+        </div>
+      ))}
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2 flex items-center justify-between">
+        <span className="text-sm font-bold">합계</span>
+        <span className={`text-sm font-black font-mono ${overBudget ? 'text-red-500' : 'text-primary'}`}>
+          {actualTotal.toLocaleString()}원
+          {overBudget && <span className="text-[10px] ml-1">(예산 초과!)</span>}
+        </span>
+      </div>
+      {totalParsed > 0 && (
+        <div className="flex items-center justify-between text-xs text-gray-500">
+          <span>설정 예산</span>
+          <span className="font-mono">{totalParsed.toLocaleString()}원</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ItineraryCard({ data }: { data: Itinerary }) {
   const [viewMode, setViewMode] = useState<'summary' | 'full'>('summary');
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set([1]));
+  const [showMap, setShowMap] = useState(false);
+  const [showCost, setShowCost] = useState(false);
+
+  // Extract places with coordinates for map
+  const mapPlaces = useMemo(() => {
+    const places: { title: string; lat: number; lng: number; category: string; day: number; order: number }[] = [];
+    data.days.forEach(day => {
+      day.activities.forEach((act, idx) => {
+        if (act.lat && act.lng) {
+          places.push({ title: act.title, lat: act.lat, lng: act.lng, category: act.category, day: day.day, order: idx + 1 });
+        }
+      });
+      if (day.accommodation?.lat && day.accommodation?.lng) {
+        places.push({ title: day.accommodation.name, lat: day.accommodation.lat, lng: day.accommodation.lng, category: 'accommodation', day: day.day, order: 99 });
+      }
+    });
+    return places;
+  }, [data]);
 
   const toggleDay = (day: number) => {
     setExpandedDays(prev => {
@@ -333,8 +404,39 @@ export function ItineraryCard({ data }: { data: Itinerary }) {
           전체 일정
         </Button>
         <div className="flex-1" />
-        <span className="text-[10px] text-gray-400">{data.days.length}일 일정</span>
+        {mapPlaces.length > 0 && (
+          <Button
+            variant={showMap ? 'default' : 'ghost'}
+            size="sm"
+            className="h-7 text-xs rounded-full px-3"
+            onClick={() => setShowMap(!showMap)}
+          >
+            <MapIcon className="w-3 h-3 mr-1" />
+            지도
+          </Button>
+        )}
+        <Button
+          variant={showCost ? 'default' : 'ghost'}
+          size="sm"
+          className="h-7 text-xs rounded-full px-3"
+          onClick={() => setShowCost(!showCost)}
+        >
+          <BarChart3 className="w-3 h-3 mr-1" />
+          비용
+        </Button>
       </div>
+
+      {/* Map */}
+      {showMap && mapPlaces.length > 0 && (
+        <div className="px-4 pt-3">
+          <Suspense fallback={<div className="h-[280px] rounded-xl bg-gray-100 animate-pulse flex items-center justify-center text-gray-400 text-sm">지도 로딩 중...</div>}>
+            <ItineraryMap places={mapPlaces} />
+          </Suspense>
+        </div>
+      )}
+
+      {/* Cost Summary */}
+      {showCost && <CostSummary data={data} />}
 
       {/* Summary text */}
       <div className="px-4 pt-3">

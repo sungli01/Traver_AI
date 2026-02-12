@@ -26,7 +26,7 @@ const categoryColors: Record<string, string> = {
   accommodation: '#6366f1',
 };
 
-export function ItineraryMap({ places, className = '' }: ItineraryMapProps) {
+export default function ItineraryMap({ places, className = '' }: ItineraryMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
 
