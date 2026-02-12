@@ -21,7 +21,7 @@ export default function TravelAgentWindow({ onPlanGenerated }: TravelAgentWindow
     // Backend API 호출
     try {
       // 실서버 주소 강제 고정
-      const apiUrl = 'https://traver-ai-production-4599.up.railway.app';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://traverai-production.up.railway.app';
       const response = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
