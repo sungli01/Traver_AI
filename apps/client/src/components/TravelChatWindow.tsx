@@ -41,13 +41,32 @@ export function TravelChatWindow() {
     scrollToBottom();
   }, [messages, currentStep, scrollToBottom]);
 
+  // 외부에서 채팅 메시지 수신 (여행 계획 폼 → 채팅)
+  const sendMessageRef = useRef<((msg: string) => void) | null>(null);
+  
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as string;
+      if (detail) {
+        setIsOpen(true);
+        // 약간의 딜레이 후 전송 (채팅 윈도우 열리는 시간)
+        setTimeout(() => {
+          setInput(detail);
+          sendMessageRef.current?.(detail);
+        }, 300);
+      }
+    };
+    window.addEventListener('travel-chat-send', handler);
+    return () => window.removeEventListener('travel-chat-send', handler);
+  }, []);
+
   const clearStepTimers = () => {
     stepTimers.current.forEach(clearTimeout);
     stepTimers.current = [];
   };
 
-  const handleSend = async () => {
-    const trimmed = input.trim();
+  const sendMessage = async (messageText: string) => {
+    const trimmed = messageText.trim();
     if (!trimmed || loading) return;
 
     let textToSend = trimmed;
@@ -111,6 +130,13 @@ export function TravelChatWindow() {
       setLoading(false);
       setTimeout(() => setCurrentStep(-1), 2000);
     }
+  };
+
+  // ref 등록
+  sendMessageRef.current = sendMessage;
+
+  const handleSend = () => {
+    sendMessage(input);
   };
 
   return (

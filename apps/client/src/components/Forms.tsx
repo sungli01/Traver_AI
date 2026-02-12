@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Calendar as CalendarIcon, CreditCard, Bot, MapPin, Plane, Sparkles, Wallet, ShieldCheck } from 'lucide-react';
+import type { DateRange } from 'react-day-picker';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -36,14 +37,35 @@ const tripSchema = z.object({
   title: z.string().min(2, '여행 제목은 2글자 이상이어야 합니다.'),
   destination: z.string().min(2, '목적지를 입력해주세요.'),
   startDate: z.date({
-    required_error: '시작일을 선택해주세요.',
+    required_error: '출발일을 선택해주세요.',
   }),
   endDate: z.date({
-    required_error: '종료일을 선택해주세요.',
+    required_error: '도착일을 선택해주세요.',
   }),
   budget: z.coerce.number().min(1000, '최소 예산은 1,000원 이상입니다.'),
   travelStyle: z.enum(['luxury', 'budget', 'adventure', 'business']),
 });
+
+// 인기 도시 목록
+const POPULAR_CITIES = [
+  '도쿄', '오사카', '교토', '후쿠오카', '삿포로',
+  '방콕', '싱가포르', '하노이', '다낭', '호치민',
+  '파리', '런던', '로마', '바르셀로나', '프라하',
+  '뉴욕', '하와이', 'LA', '샌프란시스코', '시애틀',
+  '발리', '세부', '보라카이', '푸켓', '코타키나발루',
+  '제주', '부산', '강릉', '여수', '경주',
+  '시드니', '멜버른', '오클랜드', '괌', '사이판',
+  '두바이', '이스탄불', '카이로', '몰디브', '스위스',
+];
+
+function formatNumberWithCommas(value: string): string {
+  const num = value.replace(/[^0-9]/g, '');
+  return num.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function parseFormattedNumber(value: string): number {
+  return parseInt(value.replace(/,/g, ''), 10) || 0;
+}
 
 const agentConfigSchema = z.object({
   plannerEnabled: z.boolean().default(true),
@@ -74,139 +96,202 @@ export function NewTripForm({ onSubmit }: { onSubmit: (data: z.infer<typeof trip
     },
   });
 
+  // 도시 자동추천
+  const [cityQuery, setCityQuery] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [filteredCities, setFilteredCities] = useState<string[]>([]);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // 예산 포맷
+  const [budgetDisplay, setBudgetDisplay] = useState('');
+
+  // 날짜 range
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+
+  useEffect(() => {
+    if (cityQuery.length > 0) {
+      const filtered = POPULAR_CITIES.filter(city =>
+        city.toLowerCase().includes(cityQuery.toLowerCase())
+      );
+      setFilteredCities(filtered.slice(0, 8));
+      setShowSuggestions(filtered.length > 0);
+    } else {
+      // 입력 없으면 인기 도시 보여주기
+      setFilteredCities(POPULAR_CITIES.slice(0, 8));
+    }
+  }, [cityQuery]);
+
+  // 외부 클릭 시 자동추천 닫기
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleDateRangeSelect = useCallback((range: DateRange | undefined) => {
+    setDateRange(range);
+    if (range?.from) form.setValue('startDate', range.from);
+    if (range?.to) form.setValue('endDate', range.to);
+  }, [form]);
+
+  const handleBudgetChange = useCallback((rawValue: string) => {
+    const display = formatNumberWithCommas(rawValue);
+    setBudgetDisplay(display);
+    form.setValue('budget', parseFormattedNumber(rawValue));
+  }, [form]);
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <FormField
-            control={form.control}
-            name="title"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>여행 제목</FormLabel>
-                <FormControl>
-                  <Input placeholder="예: 2026 파리 낭만 여행" {...field} className="bg-background/50" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="destination"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>목적지</FormLabel>
+        {/* 여행 제목 */}
+        <FormField
+          control={form.control}
+          name="title"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>여행 제목</FormLabel>
+              <FormControl>
+                <Input placeholder="예: 2026 파리 낭만 여행" {...field} className="bg-background/50 h-11" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* 목적지 - 자동추천 */}
+        <FormField
+          control={form.control}
+          name="destination"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>목적지</FormLabel>
+              <div className="relative" ref={suggestionsRef}>
                 <FormControl>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input placeholder="도시 또는 국가" {...field} className="pl-10 bg-background/50" />
+                    <Input
+                      placeholder="도시 또는 국가 검색..."
+                      value={cityQuery || field.value}
+                      onChange={(e) => {
+                        setCityQuery(e.target.value);
+                        field.onChange(e.target.value);
+                        setShowSuggestions(true);
+                      }}
+                      onFocus={() => setShowSuggestions(true)}
+                      className="pl-10 bg-background/50 h-11"
+                      autoComplete="off"
+                    />
                   </div>
                 </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                {showSuggestions && filteredCities.length > 0 && (
+                  <div className="absolute z-50 mt-1 w-full rounded-xl border border-border bg-popover shadow-xl max-h-48 overflow-y-auto">
+                    {cityQuery.length === 0 && (
+                      <div className="px-3 py-1.5 text-xs text-muted-foreground font-medium">인기 도시</div>
+                    )}
+                    {filteredCities.map((city) => (
+                      <button
+                        key={city}
+                        type="button"
+                        className="w-full text-left px-3 py-2.5 hover:bg-accent/10 flex items-center gap-2 text-sm transition-colors"
+                        onClick={() => {
+                          field.onChange(city);
+                          setCityQuery(city);
+                          setShowSuggestions(false);
+                        }}
+                      >
+                        <MapPin className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        {city}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* 날짜 - 출발일/도착일 한번에 선택 */}
+        <div className="space-y-2">
+          <FormLabel>여행 기간</FormLabel>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-full justify-start text-left font-normal bg-background/50 h-11",
+                  !dateRange?.from && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dateRange?.from ? (
+                  dateRange.to ? (
+                    <>
+                      {format(dateRange.from, "M월 d일", { locale: ko })} → {format(dateRange.to, "M월 d일", { locale: ko })}
+                      <span className="ml-auto text-xs text-muted-foreground">
+                        {Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24))}박
+                      </span>
+                    </>
+                  ) : (
+                    <>{format(dateRange.from, "M월 d일", { locale: ko })} → 도착일 선택</>
+                  )
+                ) : (
+                  "출발일 ~ 도착일 선택"
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="center">
+              <Calendar
+                mode="range"
+                selected={dateRange}
+                onSelect={handleDateRangeSelect}
+                numberOfMonths={2}
+                disabled={(date) => date < new Date()}
+                initialFocus
+                locale={ko}
+              />
+            </PopoverContent>
+          </Popover>
+          {form.formState.errors.startDate && (
+            <p className="text-sm text-destructive">{form.formState.errors.startDate.message}</p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <FormField
-            control={form.control}
-            name="startDate"
-            render={({ field }) => (
-              <FormItem className="flex flex-col">
-                <FormLabel>시작일</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "w-full pl-3 text-left font-normal bg-background/50",
-                          !field.value && "text-muted-foreground"
-                        )}
-                      >
-                        {field.value ? (
-                          format(field.value, "PPP", { locale: ko })
-                        ) : (
-                          <span>날짜 선택</span>
-                        )}
-                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={field.value}
-                      onSelect={field.onChange}
-                      disabled={(date) => date < new Date()}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="endDate"
-            render={({ field }) => (
-              <FormItem className="flex flex-col">
-                <FormLabel>종료일</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "w-full pl-3 text-left font-normal bg-background/50",
-                          !field.value && "text-muted-foreground"
-                        )}
-                      >
-                        {field.value ? (
-                          format(field.value, "PPP", { locale: ko })
-                        ) : (
-                          <span>날짜 선택</span>
-                        )}
-                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={field.value}
-                      onSelect={field.onChange}
-                      disabled={(date) => (form.getValues('startDate') ? date < form.getValues('startDate') : date < new Date())}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* 예산 - 천단위 구분 */}
           <FormField
             control={form.control}
             name="budget"
-            render={({ field }) => (
+            render={() => (
               <FormItem>
                 <FormLabel>예산 (₩)</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Wallet className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input type="number" placeholder="총 예산 입력" {...field} className="pl-10 bg-background/50" />
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="예: 2,000,000"
+                      value={budgetDisplay}
+                      onChange={(e) => handleBudgetChange(e.target.value)}
+                      className="pl-10 bg-background/50 h-11"
+                    />
+                    {budgetDisplay && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                        원
+                      </span>
+                    )}
                   </div>
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
+          {/* 여행 스타일 */}
           <FormField
             control={form.control}
             name="travelStyle"
@@ -215,15 +300,15 @@ export function NewTripForm({ onSubmit }: { onSubmit: (data: z.infer<typeof trip
                 <FormLabel>여행 스타일</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
-                    <SelectTrigger className="bg-background/50">
+                    <SelectTrigger className="bg-background/50 h-11">
                       <SelectValue placeholder="스타일 선택" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="luxury">럭셔리 (Luxury)</SelectItem>
-                    <SelectItem value="budget">가성비 (Budget)</SelectItem>
-                    <SelectItem value="adventure">모험 (Adventure)</SelectItem>
-                    <SelectItem value="business">비즈니스 (Business)</SelectItem>
+                    <SelectItem value="luxury">🏨 럭셔리</SelectItem>
+                    <SelectItem value="budget">💰 가성비</SelectItem>
+                    <SelectItem value="adventure">🏔️ 모험</SelectItem>
+                    <SelectItem value="business">💼 비즈니스</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -234,7 +319,7 @@ export function NewTripForm({ onSubmit }: { onSubmit: (data: z.infer<typeof trip
 
         <Button type="submit" className="w-full h-12 text-lg font-semibold bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">
           <Plane className="w-5 h-5 mr-2" />
-          여행 계획 시작하기
+          AI로 여행 계획 시작하기
         </Button>
       </form>
     </Form>

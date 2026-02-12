@@ -73,11 +73,23 @@ export default function Trips() {
   }, []);
 
   const handleCreateTrip = (data: any) => {
-    // 실제 환경에서는 API 호출 후 상태 업데이트 로직이 들어갑니다.
     setIsDialogOpen(false);
+    
+    // AI 채팅으로 여행 계획 요청 전달
+    const startStr = data.startDate ? new Date(data.startDate).toLocaleDateString('ko-KR') : '';
+    const endStr = data.endDate ? new Date(data.endDate).toLocaleDateString('ko-KR') : '';
+    const budget = data.budget ? `${data.budget.toLocaleString()}원` : '';
+    const styleMap: Record<string, string> = { luxury: '럭셔리', budget: '가성비', adventure: '모험', business: '비즈니스' };
+    const style = styleMap[data.travelStyle] || data.travelStyle;
+    
+    const chatMessage = `${data.destination} 여행 계획해줘. 제목: ${data.title}, 기간: ${startStr} ~ ${endStr}, 예산: ${budget}, 스타일: ${style}`;
+    
+    // 커스텀 이벤트로 채팅 윈도우에 메시지 전달
+    window.dispatchEvent(new CustomEvent('travel-chat-send', { detail: chatMessage }));
+    
     toast({
-      title: "새 여행 계획 생성됨",
-      description: `${data.destination} 여행 계획이 성공적으로 생성되었습니다.`,
+      title: "AI 여행 계획 시작",
+      description: `${data.destination} 여행을 AI 컨시어지가 계획하고 있습니다.`,
     });
   };
 
