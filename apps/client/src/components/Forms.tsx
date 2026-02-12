@@ -133,6 +133,7 @@ export function NewTripForm({ onSubmit }: { onSubmit: (data: z.infer<typeof trip
 
   // 날짜 range
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   useEffect(() => {
     if (cityQuery.length > 0) {
@@ -161,7 +162,11 @@ export function NewTripForm({ onSubmit }: { onSubmit: (data: z.infer<typeof trip
   const handleDateRangeSelect = useCallback((range: DateRange | undefined) => {
     setDateRange(range);
     if (range?.from) form.setValue('startDate', range.from);
-    if (range?.to) form.setValue('endDate', range.to);
+    if (range?.to) {
+      form.setValue('endDate', range.to);
+      // 출발일+도착일 모두 선택되면 캘린더 자동 닫기
+      setTimeout(() => setCalendarOpen(false), 300);
+    }
   }, [form]);
 
   const handleBudgetChange = useCallback((rawValue: string) => {
@@ -222,7 +227,8 @@ export function NewTripForm({ onSubmit }: { onSubmit: (data: z.infer<typeof trip
                       <button
                         key={city}
                         type="button"
-                        className="w-full text-left px-3 py-2.5 hover:bg-accent/10 flex items-center gap-2 text-sm transition-colors"
+                        className="w-full text-left px-3 py-2.5 hover:bg-accent/10 active:bg-accent/20 flex items-center gap-2 text-sm transition-colors"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
                           field.onChange(city);
                           setCityQuery(city);
@@ -244,7 +250,7 @@ export function NewTripForm({ onSubmit }: { onSubmit: (data: z.infer<typeof trip
         {/* 날짜 - 출발일/도착일 한번에 선택 */}
         <div className="space-y-2">
           <FormLabel>여행 기간</FormLabel>
-          <Popover>
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"

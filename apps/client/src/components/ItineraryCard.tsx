@@ -293,23 +293,41 @@ export function ItineraryCard({ data }: { data: Itinerary }) {
 /** JSON 파싱 시도. itinerary JSON이면 Itinerary 객체 반환, 아니면 null */
 export function tryParseItinerary(text: string): Itinerary | null {
   try {
-    // JSON 블록 추출 (```json ... ``` 또는 순수 JSON)
-    let jsonStr = text;
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-      jsonStr = jsonMatch[1];
-    } else if (text.trim().startsWith('{')) {
-      jsonStr = text.trim();
-    } else {
-      return null;
+    // JSON 블록 추출 - 여러 패턴 시도
+    let jsonStr = '';
+    
+    // 1. ```json ... ``` 블록
+    const jsonBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonBlockMatch) {
+      jsonStr = jsonBlockMatch[1].trim();
     }
+    
+    // 2. 첫 번째 { 부터 마지막 } 까지 추출
+    if (!jsonStr) {
+      const firstBrace = text.indexOf('{');
+      const lastBrace = text.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace > firstBrace) {
+        jsonStr = text.substring(firstBrace, lastBrace + 1);
+      }
+    }
+    
+    if (!jsonStr) return null;
+    
+    // JSON5 스타일 허용: trailing commas 제거
+    jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
     
     const parsed = JSON.parse(jsonStr);
     if (parsed.type === 'itinerary' && parsed.days && Array.isArray(parsed.days)) {
       return parsed as Itinerary;
     }
+    // type 필드 없어도 days 배열이 있으면 itinerary로 간주
+    if (parsed.days && Array.isArray(parsed.days) && parsed.title) {
+      parsed.type = 'itinerary';
+      return parsed as Itinerary;
+    }
     return null;
-  } catch {
+  } catch (e) {
+    console.error('Itinerary parse error:', e);
     return null;
   }
 }
