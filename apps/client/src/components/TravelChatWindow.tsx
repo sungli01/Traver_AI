@@ -3,10 +3,12 @@ import { MessageSquare, Send, X, Minimize2, Loader2, CheckCircle2 } from 'lucide
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useSecurityStore } from '@/stores/securityStore';
+import { ItineraryCard, tryParseItinerary, type Itinerary } from '@/components/ItineraryCard';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  itinerary?: Itinerary;
 }
 
 const STEPS = [
@@ -118,7 +120,13 @@ export function TravelChatWindow() {
       clearStepTimers();
       setCurrentStep(STEPS.length - 1);
 
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+      // 구조화된 일정 JSON 파싱 시도
+      const itinerary = tryParseItinerary(reply);
+      setMessages((prev) => [...prev, { 
+        role: 'assistant', 
+        content: itinerary ? '' : reply,
+        itinerary: itinerary || undefined 
+      }]);
     } catch {
       clearStepTimers();
       setCurrentStep(-1);
@@ -167,7 +175,7 @@ export function TravelChatWindow() {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-0 right-0 left-0 sm:left-auto sm:bottom-4 sm:right-4 z-50 w-[calc(100vw)] sm:w-[380px] h-[calc(100dvh-4rem)] sm:h-[520px] flex flex-col rounded-t-2xl sm:rounded-2xl border border-border bg-background shadow-2xl overflow-hidden"
+            className="fixed bottom-0 right-0 left-0 sm:left-auto sm:bottom-4 sm:right-4 z-50 w-full sm:w-[420px] h-[calc(100dvh-4rem)] sm:h-[600px] flex flex-col rounded-t-2xl sm:rounded-2xl border border-border bg-background shadow-2xl overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-primary/5">
@@ -202,15 +210,21 @@ export function TravelChatWindow() {
 
               {messages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
-                      msg.role === 'user'
-                        ? 'bg-primary text-primary-foreground rounded-br-md'
-                        : 'bg-muted rounded-bl-md'
-                    }`}
-                  >
-                    {msg.content}
-                  </div>
+                  {msg.itinerary ? (
+                    <div className="w-full">
+                      <ItineraryCard data={msg.itinerary} />
+                    </div>
+                  ) : (
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+                        msg.role === 'user'
+                          ? 'bg-primary text-primary-foreground rounded-br-md'
+                          : 'bg-muted rounded-bl-md'
+                      }`}
+                    >
+                      {msg.content}
+                    </div>
+                  )}
                 </div>
               ))}
 
