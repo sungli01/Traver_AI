@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plane, UtensilsCrossed, MapPin, ShoppingBag, Sparkles, Coffee,
-  Clock, DollarSign, ExternalLink, Hotel, ChevronDown, ChevronUp,
-  CalendarDays, Wallet, Star
+  ExternalLink, Hotel, ChevronDown, ChevronUp,
+  CalendarDays, Wallet, Star, Navigation, Plus, StickyNote, Check
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,70 +45,144 @@ export interface Itinerary {
   days: Day[];
 }
 
-const categoryConfig: Record<string, { icon: typeof Plane; color: string; bg: string; label: string }> = {
-  transport: { icon: Plane, color: 'text-blue-600', bg: 'bg-blue-50', label: '교통' },
-  restaurant: { icon: UtensilsCrossed, color: 'text-orange-600', bg: 'bg-orange-50', label: '식사' },
-  attraction: { icon: MapPin, color: 'text-emerald-600', bg: 'bg-emerald-50', label: '관광' },
-  shopping: { icon: ShoppingBag, color: 'text-pink-600', bg: 'bg-pink-50', label: '쇼핑' },
-  activity: { icon: Sparkles, color: 'text-purple-600', bg: 'bg-purple-50', label: '액티비티' },
-  rest: { icon: Coffee, color: 'text-amber-600', bg: 'bg-amber-50', label: '휴식' },
+/* ── Category config ── */
+const categoryConfig: Record<string, { icon: typeof Plane; color: string; bg: string; ring: string; label: string; emoji: string }> = {
+  transport:  { icon: Plane,             color: 'text-blue-600',    bg: 'bg-blue-500',    ring: 'ring-blue-200',    label: '교통',     emoji: '✈️' },
+  restaurant: { icon: UtensilsCrossed,   color: 'text-orange-600',  bg: 'bg-orange-500',  ring: 'ring-orange-200',  label: '식사',     emoji: '🍽️' },
+  attraction: { icon: MapPin,            color: 'text-emerald-600', bg: 'bg-emerald-500', ring: 'ring-emerald-200', label: '관광',     emoji: '📍' },
+  shopping:   { icon: ShoppingBag,       color: 'text-pink-600',    bg: 'bg-pink-500',    ring: 'ring-pink-200',    label: '쇼핑',     emoji: '🛍️' },
+  activity:   { icon: Sparkles,          color: 'text-purple-600',  bg: 'bg-purple-500',  ring: 'ring-purple-200',  label: '액티비티', emoji: '⚡' },
+  rest:       { icon: Coffee,            color: 'text-amber-600',   bg: 'bg-amber-500',   ring: 'ring-amber-200',   label: '휴식',     emoji: '☕' },
 };
 
-function ActivityItem({ activity }: { activity: Activity }) {
-  const config = categoryConfig[activity.category] || categoryConfig.attraction;
-  const Icon = config.icon;
+const getConfig = (cat: string) => categoryConfig[cat] || categoryConfig.attraction;
+
+function mapsUrl(title: string, destination: string) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(title + ' ' + destination)}`;
+}
+
+/* ── Number badge (circle) ── */
+function NumberBadge({ num, category }: { num: number; category: string }) {
+  const cfg = getConfig(category);
+  return (
+    <div className={`w-8 h-8 rounded-full ${cfg.bg} text-white flex items-center justify-center text-xs font-bold ring-2 ${cfg.ring} shrink-0 shadow-sm`}>
+      {num}
+    </div>
+  );
+}
+
+/* ── Connector line between places ── */
+function Connector() {
+  return (
+    <div className="flex items-center gap-2 pl-[15px] py-1">
+      <div className="w-px h-6 border-l-2 border-dashed border-gray-300" />
+      <span className="text-[10px] text-gray-400 font-medium ml-2">이동</span>
+    </div>
+  );
+}
+
+/* ── Place card (RAMZI style) ── */
+function PlaceCard({ activity, index, destination, isLast }: { activity: Activity; index: number; destination: string; isLast: boolean }) {
+  const cfg = getConfig(activity.category);
 
   return (
-    <div className="flex gap-3 group">
-      {/* Timeline */}
-      <div className="flex flex-col items-center shrink-0">
-        <div className={`w-8 h-8 rounded-lg ${config.bg} ${config.color} flex items-center justify-center`}>
-          <Icon className="w-4 h-4" />
+    <div>
+      <div className="flex gap-3 items-start group">
+        {/* Left: number badge + vertical line */}
+        <div className="flex flex-col items-center">
+          <NumberBadge num={index + 1} category={activity.category} />
+          {!isLast && <div className="w-px flex-1 bg-gray-200 mt-1 min-h-[8px]" />}
         </div>
-        <div className="w-px flex-1 bg-border mt-1" />
+
+        {/* Center: content */}
+        <div className="flex-1 min-w-0 pb-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <h4 className="font-bold text-sm leading-tight text-gray-900 dark:text-gray-100">{activity.title}</h4>
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                <span className={`text-[11px] font-medium ${cfg.color}`}>{cfg.label}</span>
+                {activity.description && (
+                  <>
+                    <span className="text-gray-300">·</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 leading-snug">{activity.description}</span>
+                  </>
+                )}
+              </div>
+              {activity.time && (
+                <span className="text-[10px] text-gray-400 font-mono">{activity.time}</span>
+              )}
+            </div>
+            {/* Right: cost */}
+            <span className="text-xs font-bold text-gray-700 dark:text-gray-300 whitespace-nowrap shrink-0 mt-0.5">
+              {activity.cost}
+            </span>
+          </div>
+
+          {/* Signature */}
+          {activity.signature && (
+            <div className="mt-1.5 flex items-start gap-1.5 bg-amber-50 dark:bg-amber-950/20 rounded-lg px-2.5 py-1.5 border border-amber-200/60">
+              <Star className="w-3 h-3 text-amber-500 mt-0.5 shrink-0 fill-amber-500" />
+              <div>
+                <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">시그니처</span>
+                <p className="text-xs text-amber-700 dark:text-amber-400 leading-snug">{activity.signature}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Links row */}
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            {activity.link && (
+              <a
+                href={activity.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-700 hover:underline font-medium"
+              >
+                <ExternalLink className="w-3 h-3" />
+                {activity.linkLabel || '자세히 보기 →'}
+              </a>
+            )}
+            <a
+              href={mapsUrl(activity.title, destination)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-medium"
+            >
+              <Navigation className="w-3 h-3" />
+              🗺️ 길찾기
+            </a>
+          </div>
+        </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 pb-4 min-w-0">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                {activity.time}
-              </span>
-              <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${config.color} border-current/20`}>
-                {config.label}
-              </Badge>
-            </div>
-            <h4 className="font-semibold text-sm mt-1 leading-tight">{activity.title}</h4>
-            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{activity.description}</p>
-          </div>
-          <span className="text-xs font-semibold text-primary whitespace-nowrap shrink-0">
-            {activity.cost}
-          </span>
+      {/* Connector to next place */}
+      {!isLast && <Connector />}
+    </div>
+  );
+}
+
+/* ── Accommodation card ── */
+function AccommodationCard({ accommodation }: { accommodation: Accommodation }) {
+  return (
+    <div className="mt-3 mx-0">
+      <div className="border-t border-dashed border-gray-200 dark:border-gray-700 my-2" />
+      <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 border border-indigo-200/50 dark:border-indigo-800/50">
+        <div className="w-9 h-9 rounded-full bg-indigo-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+          <Hotel className="w-4 h-4" />
         </div>
-
-        {/* Signature Menu */}
-        {activity.signature && (
-          <div className="mt-1.5 flex items-start gap-1.5 bg-orange-50 dark:bg-orange-950/20 rounded-lg px-2.5 py-1.5 border border-orange-200/50">
-            <Star className="w-3 h-3 text-orange-500 mt-0.5 shrink-0" />
-            <div>
-              <span className="text-[10px] font-semibold text-orange-600 uppercase tracking-wider">시그니처 메뉴</span>
-              <p className="text-xs text-orange-700 dark:text-orange-400">{activity.signature}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Link */}
-        {activity.link && (
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-indigo-700 dark:text-indigo-300 truncate">🏨 {accommodation.name}</p>
+          <p className="text-xs text-indigo-500 dark:text-indigo-400 font-semibold">{accommodation.cost}</p>
+        </div>
+        {accommodation.link && (
           <a
-            href={activity.link}
+            href={accommodation.link}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline mt-1.5 font-medium"
+            className="text-[11px] text-indigo-600 hover:underline font-medium flex items-center gap-1 shrink-0"
           >
             <ExternalLink className="w-3 h-3" />
-            {activity.linkLabel || '자세히 보기'}
+            {accommodation.linkLabel || '호텔 예약 →'}
           </a>
         )}
       </div>
@@ -116,66 +190,72 @@ function ActivityItem({ activity }: { activity: Activity }) {
   );
 }
 
-function DayCard({ dayData, isExpanded, onToggle }: { dayData: Day; isExpanded: boolean; onToggle: () => void }) {
+/* ── Day section ── */
+function DaySection({ dayData, destination, isExpanded, onToggle }: { dayData: Day; destination: string; isExpanded: boolean; onToggle: () => void }) {
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      {/* Day Header */}
+    <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
+      {/* Day header bar */}
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 hover:from-gray-100 hover:to-gray-50 dark:hover:from-gray-750 transition-colors"
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
-            D{dayData.day}
+          <div className="w-11 h-11 rounded-xl bg-primary text-primary-foreground flex flex-col items-center justify-center leading-none shadow-sm">
+            <span className="text-[9px] font-semibold uppercase tracking-wide opacity-80">Day</span>
+            <span className="text-base font-black -mt-0.5">{dayData.day}</span>
           </div>
           <div className="text-left">
-            <p className="text-sm font-bold">{dayData.date}</p>
-            <p className="text-xs text-muted-foreground">{dayData.theme}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-bold text-gray-800 dark:text-gray-100">{dayData.date}</p>
+              <Check className="w-3.5 h-3.5 text-emerald-500" />
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{dayData.theme}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-primary">{dayData.dailyCost}</span>
-          {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+          <span className="text-sm font-bold text-primary">{dayData.dailyCost}</span>
+          {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
         </div>
       </button>
 
-      {/* Day Content */}
+      {/* Day content */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-4 pt-1">
-              {/* Activities */}
+            <div className="px-4 pb-4 pt-3">
+              {/* Activities timeline */}
               {dayData.activities.map((activity, i) => (
-                <ActivityItem key={i} activity={activity} />
+                <PlaceCard
+                  key={i}
+                  activity={activity}
+                  index={i}
+                  destination={destination}
+                  isLast={i === dayData.activities.length - 1}
+                />
               ))}
 
               {/* Accommodation */}
               {dayData.accommodation && (
-                <div className="flex items-center gap-3 mt-2 p-3 rounded-lg bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200/50">
-                  <Hotel className="w-5 h-5 text-indigo-600 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-400">{dayData.accommodation.name}</p>
-                    <p className="text-[11px] text-indigo-600/80">{dayData.accommodation.cost}</p>
-                  </div>
-                  {dayData.accommodation.link && (
-                    <a
-                      href={dayData.accommodation.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[10px] text-indigo-600 hover:underline font-medium flex items-center gap-1 shrink-0"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      {dayData.accommodation.linkLabel || '예약'}
-                    </a>
-                  )}
-                </div>
+                <AccommodationCard accommodation={dayData.accommodation} />
               )}
+
+              {/* Bottom action buttons */}
+              <div className="flex items-center gap-2 mt-4 pt-3 border-t border-dashed border-gray-200 dark:border-gray-700">
+                <button className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-primary font-medium px-3 py-1.5 rounded-lg hover:bg-primary/5 transition-colors">
+                  <Plus className="w-3.5 h-3.5" />
+                  장소 추가
+                </button>
+                <button className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-primary font-medium px-3 py-1.5 rounded-lg hover:bg-primary/5 transition-colors">
+                  <StickyNote className="w-3.5 h-3.5" />
+                  📝 메모 추가
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
@@ -184,6 +264,7 @@ function DayCard({ dayData, isExpanded, onToggle }: { dayData: Day; isExpanded: 
   );
 }
 
+/* ── Main ItineraryCard ── */
 export function ItineraryCard({ data }: { data: Itinerary }) {
   const [viewMode, setViewMode] = useState<'summary' | 'full'>('summary');
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set([1]));
@@ -208,37 +289,37 @@ export function ItineraryCard({ data }: { data: Itinerary }) {
   };
 
   return (
-    <div className="w-full max-w-full rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+    <div className="w-full max-w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-primary/10 via-accent/5 to-transparent p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h3 className="font-bold text-base leading-tight">{data.title}</h3>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <Badge variant="secondary" className="text-[10px] gap-1">
+      <div className="bg-white dark:bg-gray-900 p-4 border-b border-gray-100 dark:border-gray-800">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="font-black text-lg leading-tight text-gray-900 dark:text-gray-50">{data.title}</h3>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <Badge variant="secondary" className="text-[11px] gap-1 rounded-full px-2.5 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border-0">
                 <MapPin className="w-3 h-3" /> {data.destination}
               </Badge>
-              <Badge variant="secondary" className="text-[10px] gap-1">
+              <Badge variant="secondary" className="text-[11px] gap-1 rounded-full px-2.5 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-0">
                 <CalendarDays className="w-3 h-3" /> {data.period}
               </Badge>
             </div>
           </div>
-          <div className="text-right shrink-0">
+          <div className="text-right shrink-0 bg-primary/5 rounded-xl px-3 py-2">
             <div className="flex items-center gap-1 text-primary">
-              <Wallet className="w-3.5 h-3.5" />
-              <span className="text-sm font-bold">{data.totalBudget}</span>
+              <Wallet className="w-4 h-4" />
+              <span className="text-base font-black">{data.totalBudget}</span>
             </div>
-            <span className="text-[10px] text-muted-foreground">총 예산</span>
+            <span className="text-[10px] text-gray-500 font-medium">총 예산</span>
           </div>
         </div>
       </div>
 
-      {/* View Toggle */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-border bg-muted/20">
+      {/* View toggle bar */}
+      <div className="flex items-center gap-1 px-4 py-2 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
         <Button
           variant={viewMode === 'summary' ? 'default' : 'ghost'}
           size="sm"
-          className="h-7 text-xs rounded-lg"
+          className="h-7 text-xs rounded-full px-4"
           onClick={collapseAll}
         >
           요약
@@ -246,46 +327,32 @@ export function ItineraryCard({ data }: { data: Itinerary }) {
         <Button
           variant={viewMode === 'full' ? 'default' : 'ghost'}
           size="sm"
-          className="h-7 text-xs rounded-lg"
+          className="h-7 text-xs rounded-full px-4"
           onClick={expandAll}
         >
           전체 일정
         </Button>
+        <div className="flex-1" />
+        <span className="text-[10px] text-gray-400">{data.days.length}일 일정</span>
       </div>
 
-      {/* Summary */}
-      {viewMode === 'summary' && (
-        <div className="p-4 space-y-3">
-          <p className="text-sm leading-relaxed text-muted-foreground">{data.summary}</p>
-          
-          {/* Day Overview */}
-          <div className="space-y-2">
-            {data.days.map((day) => (
-              <DayCard
-                key={day.day}
-                dayData={day}
-                isExpanded={expandedDays.has(day.day)}
-                onToggle={() => toggleDay(day.day)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Summary text */}
+      <div className="px-4 pt-3">
+        <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-400">{data.summary}</p>
+      </div>
 
-      {/* Full View */}
-      {viewMode === 'full' && (
-        <div className="p-4 space-y-3">
-          <p className="text-sm leading-relaxed text-muted-foreground mb-4">{data.summary}</p>
-          {data.days.map((day) => (
-            <DayCard
-              key={day.day}
-              dayData={day}
-              isExpanded={true}
-              onToggle={() => toggleDay(day.day)}
-            />
-          ))}
-        </div>
-      )}
+      {/* Days */}
+      <div className="p-4 space-y-3">
+        {data.days.map((day) => (
+          <DaySection
+            key={day.day}
+            dayData={day}
+            destination={data.destination}
+            isExpanded={viewMode === 'full' || expandedDays.has(day.day)}
+            onToggle={() => toggleDay(day.day)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
