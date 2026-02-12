@@ -71,9 +71,11 @@ export default function Dashboard() {
               모든 데이터는 암호화되어 안전하게 관리됩니다.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
-              <Button size="lg" className="rounded-full px-8 shadow-lg shadow-primary/20">
-                <Plus className="w-4 h-4 mr-2" />
-                새 여행 계획하기
+              <Button size="lg" className="rounded-full px-8 shadow-lg shadow-primary/20" asChild>
+                <Link to={ROUTE_PATHS.TRIPS}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  새 여행 계획하기
+                </Link>
               </Button>
               <Button variant="secondary" size="lg" className="rounded-full px-8" asChild>
                 <Link to={ROUTE_PATHS.AGENTS}>

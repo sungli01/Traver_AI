@@ -292,42 +292,82 @@ export function ItineraryCard({ data }: { data: Itinerary }) {
 
 /** JSON 파싱 시도. itinerary JSON이면 Itinerary 객체 반환, 아니면 null */
 export function tryParseItinerary(text: string): Itinerary | null {
-  try {
-    // JSON 블록 추출 - 여러 패턴 시도
-    let jsonStr = '';
-    
-    // 1. ```json ... ``` 블록
-    const jsonBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonBlockMatch) {
-      jsonStr = jsonBlockMatch[1].trim();
-    }
-    
-    // 2. 첫 번째 { 부터 마지막 } 까지 추출
-    if (!jsonStr) {
-      const firstBrace = text.indexOf('{');
-      const lastBrace = text.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace > firstBrace) {
-        jsonStr = text.substring(firstBrace, lastBrace + 1);
-      }
-    }
-    
-    if (!jsonStr) return null;
-    
-    // JSON5 스타일 허용: trailing commas 제거
-    jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
-    
-    const parsed = JSON.parse(jsonStr);
-    if (parsed.type === 'itinerary' && parsed.days && Array.isArray(parsed.days)) {
-      return parsed as Itinerary;
-    }
-    // type 필드 없어도 days 배열이 있으면 itinerary로 간주
-    if (parsed.days && Array.isArray(parsed.days) && parsed.title) {
-      parsed.type = 'itinerary';
-      return parsed as Itinerary;
-    }
-    return null;
-  } catch (e) {
-    console.error('Itinerary parse error:', e);
-    return null;
+  // 여행 관련 키워드가 없으면 바로 null
+  if (!text.includes('"days"') && !text.includes('"itinerary"')) return null;
+
+  const attempts: string[] = [];
+  
+  // 1. ```json ... ``` 블록 (닫는 ``` 없어도 추출)
+  const jsonBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)(?:```|$)/);
+  if (jsonBlockMatch) {
+    attempts.push(jsonBlockMatch[1].trim());
   }
+  
+  // 2. 첫 번째 { 부터 마지막 } 까지
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    attempts.push(text.substring(firstBrace, lastBrace + 1));
+  }
+  
+  // 3. 첫 번째 { 부터 끝까지 (잘린 JSON 복구 시도)
+  if (firstBrace !== -1) {
+    attempts.push(text.substring(firstBrace));
+  }
+
+  for (let jsonStr of attempts) {
+    try {
+      // trailing commas 제거
+      jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
+      
+      // 잘린 JSON 복구: 열린 괄호 수 세서 닫기
+      let openBraces = 0, openBrackets = 0;
+      let inString = false, escape = false;
+      for (const ch of jsonStr) {
+        if (escape) { escape = false; continue; }
+        if (ch === '\\') { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (ch === '{') openBraces++;
+        if (ch === '}') openBraces--;
+        if (ch === '[') openBrackets++;
+        if (ch === ']') openBrackets--;
+      }
+      
+      // 닫히지 않은 괄호 보완
+      if (openBraces > 0 || openBrackets > 0) {
+        // 마지막 완전한 객체까지 자르기 시도
+        const lastCompleteObj = jsonStr.lastIndexOf('}');
+        if (lastCompleteObj > 0) {
+          let trimmed = jsonStr.substring(0, lastCompleteObj + 1);
+          // 남은 열린 괄호 닫기
+          let ob = 0, obt = 0;
+          let inStr2 = false, esc2 = false;
+          for (const ch of trimmed) {
+            if (esc2) { esc2 = false; continue; }
+            if (ch === '\\') { esc2 = true; continue; }
+            if (ch === '"') { inStr2 = !inStr2; continue; }
+            if (inStr2) continue;
+            if (ch === '{') ob++;
+            if (ch === '}') ob--;
+            if (ch === '[') obt++;
+            if (ch === ']') obt--;
+          }
+          while (obt > 0) { trimmed += ']'; obt--; }
+          while (ob > 0) { trimmed += '}'; ob--; }
+          jsonStr = trimmed;
+        }
+      }
+
+      const parsed = JSON.parse(jsonStr);
+      if (parsed.days && Array.isArray(parsed.days)) {
+        if (!parsed.type) parsed.type = 'itinerary';
+        return parsed as Itinerary;
+      }
+    } catch {
+      continue;
+    }
+  }
+  
+  return null;
 }
