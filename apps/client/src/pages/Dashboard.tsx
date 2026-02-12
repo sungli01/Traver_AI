@@ -12,10 +12,11 @@ import {
 } from 'lucide-react';
 import { ROUTE_PATHS, formatCurrency } from '@/lib/index';
 import { sampleAgents, sampleTrips } from '@/data/index';
-import { AgentGrid } from '@/components/AgentCards';
 import { TripGrid } from '@/components/TripCards';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { IMAGES } from '@/assets/images';
 import { Link } from 'react-router-dom';
 
@@ -143,25 +144,49 @@ export default function Dashboard() {
         </motion.div>
       </motion.div>
 
-      {/* Agents Section */}
+      {/* Agents Section - Compact Icon Bar */}
       <motion.section 
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
         viewport={{ once: true }}
-        className="space-y-6"
+        className="space-y-4"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <LayoutDashboard className="w-5 h-5 text-primary" />
             <h2 className="text-2xl font-bold">나의 AI 에이전트</h2>
           </div>
-          <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-primary">
-            <Link to={ROUTE_PATHS.AGENTS}>
-              전체 관리 <ArrowRight className="w-4 h-4 ml-1" />
-            </Link>
-          </Button>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              {sampleAgents.map(agent => {
+                const statusColor = 
+                  agent.status === 'working' || agent.status === 'success' || agent.status === 'secured' || agent.status === 'verifying'
+                    ? 'bg-emerald-500'
+                    : agent.status === 'idle'
+                    ? 'bg-yellow-500'
+                    : 'bg-red-500';
+                return (
+                  <Tooltip key={agent.id}>
+                    <TooltipTrigger asChild>
+                      <div className="relative cursor-pointer">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={agent.avatar} />
+                        </Avatar>
+                        <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background ${statusColor}`} />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>{agent.name}: {agent.currentTask?.description || agent.status}</TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+            <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-primary">
+              <Link to={ROUTE_PATHS.AGENTS}>
+                에이전트 설정 <ArrowRight className="w-4 h-4 ml-1" />
+              </Link>
+            </Button>
+          </div>
         </div>
-        <AgentGrid agents={sampleAgents.slice(0, 4)} />
       </motion.section>
 
       {/* Upcoming Trips Section */}

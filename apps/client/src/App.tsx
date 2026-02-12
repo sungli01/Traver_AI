@@ -12,6 +12,8 @@ import Payment from "@/pages/Payment";
 import Settings from "@/pages/Settings";
 import Security from "@/pages/Security";
 import Blockchain from "@/pages/Blockchain";
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
 
 /**
  * @description Skywork 기반 개인화 멀티에이전트 여행 서비스 - VoyageSafe AI
@@ -76,6 +78,18 @@ const App = () => {
               <Route 
                 path={ROUTE_PATHS.BLOCKCHAIN} 
                 element={<Blockchain />} 
+              />
+
+              {/* 로그인 */}
+              <Route 
+                path={ROUTE_PATHS.LOGIN} 
+                element={<Login />} 
+              />
+
+              {/* 회원가입 */}
+              <Route 
+                path={ROUTE_PATHS.REGISTER} 
+                element={<Register />} 
               />
 
               {/* 404 페이지 - 요청된 경로가 없을 경우 */}

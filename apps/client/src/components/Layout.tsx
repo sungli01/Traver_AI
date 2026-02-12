@@ -27,11 +27,11 @@ interface LayoutProps {
 
 const NAV_ITEMS = [
   { name: '대시보드', path: ROUTE_PATHS.DASHBOARD, icon: LayoutDashboard },
-  { name: 'AI 에이전트', path: ROUTE_PATHS.AGENTS, icon: Bot },
   { name: '여행 일정', path: ROUTE_PATHS.TRIPS, icon: Map },
   { name: '결제 관리', path: ROUTE_PATHS.PAYMENT, icon: CreditCard },
   { name: '보안 센터', path: ROUTE_PATHS.SECURITY, icon: Shield },
   { name: '블록체인', path: ROUTE_PATHS.BLOCKCHAIN, icon: Blocks },
+  { name: 'AI 에이전트', path: ROUTE_PATHS.AGENTS, icon: Bot },
 ];
 
 export function Layout({ children }: LayoutProps) {

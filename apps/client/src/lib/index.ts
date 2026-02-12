@@ -6,6 +6,8 @@ export const ROUTE_PATHS = {
   SETTINGS: '/settings',
   SECURITY: '/security',
   BLOCKCHAIN: '/blockchain',
+  LOGIN: '/login',
+  REGISTER: '/register',
 } as const;
 
 // Skywork 멀티에이전트 시스템 타입
