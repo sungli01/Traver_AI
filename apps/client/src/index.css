@@ -1,0 +1,203 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Noto+Sans+KR:wght@100..900&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+==========================================================================
+【AI HANDOVER NOTE】
+1. DESIGN PHILOSOPHY:
+   - Atmosphere-First & Agentic Autonomy: 이 디자인은 '자율성'과 '신뢰'를 핵심 가치로 합니다. 사용자가 개입하지 않아도 에이전트가 배경에서 작동하고 있음을 시각화하기 위해 부드러운 발광(Glow) 효과와 유동적인 상태 변화를 강조합니다.
+   - Visual Style: Neo-minimalism 기반의 Bento Grid 레이아웃을 채택하여 항공, 숙박, 결제 등 복잡한 멀티 에이전트 데이터를 모듈식으로 정리합니다. 카드 정보와 같은 민감한 영역은 'Secure Glass' 효과(강한 블러와 미세한 테두리 광택)를 사용하여 물리적 안전감을 제공합니다.
+   - Purpose: 2026년 여행 트렌드인 '실시간 적응형 에이전트'의 작업 프로세스를 사용자에게 투명하면서도 압도적이지 않게 전달하기 위함입니다.
+
+2. TYPOGRAPHY:
+   - Sans (Inter + Noto Sans KR): 글로벌 서비스의 현대적인 감각을 위해 Inter를 UI 기본 서체로 사용하며, 한국어 가독성의 정석인 Noto Sans KR을 병행하여 정보 전달력을 극대화했습니다.
+   - Mono (JetBrains Mono): 에이전트의 실시간 실행 로그, 예약 번호, 결제 트랜잭션 ID 등 기술적 정밀함이 필요한 데이터에 사용하여 시스템의 신뢰도를 높입니다.
+
+3. COLOR SYSTEM:
+   - Brand Identity: 신뢰를 상징하는 Deep Indigo(H 265)를 기본 Primary로 설정하고, AI의 활성 상태를 나타내는 Electric Cyan(H 200)을 Accent로 활용합니다.
+   - Mapping: --primary는 결정적 행동(예약 확정)에, --accent는 에이전트의 현재 활동 및 강조 사항에 매핑됩니다. --ring은 집중도를 높이기 위해 사이언 계열의 고대비 색상을 사용합니다.
+   - Semantic Logic: 여행 일정의 변경(Warning)은 따뜻한 Amber, 성공적인 예약(Success)은 신선한 Emerald, 취소 및 오류(Destructive)는 Coral Red를 사용하여 직관적인 인지를 돕습니다.
+
+4. USAGE GUIDE:
+   - Layout: 대시보드는 좌측 사이드바 기반의 Full-width 레이아웃을 권장하며, 각 에이전트의 작업 카드는 격자 구조로 배치합니다.
+   - Effects: 에이전트가 활성화된 카드에는 oklch(0.7 0.15 200) 색상의 rim-light 효과를 주어 '생동감'을 부여합니다. 결제 모달은 backdrop-blur(12px)를 적용하여 시각적 깊이를 만듭니다.
+   - Security: 카드 정보 입력란은 고유한 내부 그림자(Ambient Occlusion)를 사용하여 물리적으로 삽입된 듯한 느낌을 주어 보안성을 시각적으로 강조합니다.
+==========================================================================
+*/
+
+:root {
+  /* Typography */
+  --font-sans: "Inter", "Noto Sans KR", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  /* Radius */
+  --radius: 1rem;
+
+  /* Core UI Tokens */
+  --background: oklch(0.99 0.005 240);
+  --foreground: oklch(0.15 0.02 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.15 0.02 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.15 0.02 260);
+  --primary: oklch(0.52 0.16 265);
+  --primary-foreground: oklch(0.98 0.01 265);
+  --secondary: oklch(0.94 0.02 260);
+  --secondary-foreground: oklch(0.25 0.05 260);
+  --muted: oklch(0.96 0.01 240);
+  --muted-foreground: oklch(0.45 0.03 240);
+  --accent: oklch(0.7 0.15 200);
+  --accent-foreground: oklch(0.2 0.05 200);
+  --destructive: oklch(0.6 0.18 25);
+  --destructive-foreground: oklch(0.98 0.01 25);
+  --border: oklch(0.9 0.02 240);
+  --input: oklch(0.9 0.02 240);
+  --ring: oklch(0.52 0.16 265);
+  
+  /* Chart Tokens */
+  --chart-1: oklch(0.52 0.16 265);
+  --chart-2: oklch(0.65 0.14 200);
+  --chart-3: oklch(0.75 0.15 60);
+  --chart-4: oklch(0.65 0.15 150);
+  --chart-5: oklch(0.6 0.15 320);
+  
+  /* Sidebar Tokens */
+  --sidebar: oklch(0.97 0.01 240);
+  --sidebar-foreground: oklch(0.2 0.03 240);
+  --sidebar-primary: oklch(0.52 0.16 265);
+  --sidebar-primary-foreground: oklch(0.98 0.01 265);
+  --sidebar-accent: oklch(0.92 0.02 240);
+  --sidebar-accent-foreground: oklch(0.2 0.03 240);
+  --sidebar-border: oklch(0.88 0.02 240);
+  --sidebar-ring: oklch(0.52 0.16 265);
+}
+
+.dark {
+  --background: oklch(0.12 0.02 260);
+  --foreground: oklch(0.95 0.01 260);
+  --card: oklch(0.16 0.03 260);
+  --card-foreground: oklch(0.95 0.01 260);
+  --popover: oklch(0.14 0.03 260);
+  --popover-foreground: oklch(0.95 0.01 260);
+  --primary: oklch(0.65 0.18 265);
+  --primary-foreground: oklch(0.1 0.03 265);
+  --secondary: oklch(0.22 0.04 260);
+  --secondary-foreground: oklch(0.9 0.02 260);
+  --muted: oklch(0.2 0.03 260);
+  --muted-foreground: oklch(0.7 0.02 260);
+  --accent: oklch(0.75 0.16 200);
+  --accent-foreground: oklch(0.1 0.04 200);
+  --destructive: oklch(0.55 0.2 25);
+  --destructive-foreground: oklch(0.98 0.01 25);
+  --border: oklch(0.25 0.04 260);
+  --input: oklch(0.25 0.04 260);
+  --ring: oklch(0.65 0.18 265);
+  
+  /* Chart Tokens */
+  --chart-1: oklch(0.65 0.18 265);
+  --chart-2: oklch(0.75 0.16 200);
+  --chart-3: oklch(0.8 0.16 65);
+  --chart-4: oklch(0.7 0.16 160);
+  --chart-5: oklch(0.65 0.16 330);
+  
+  /* Sidebar Tokens */
+  --sidebar: oklch(0.1 0.02 260);
+  --sidebar-foreground: oklch(0.9 0.02 260);
+  --sidebar-primary: oklch(0.65 0.18 265);
+  --sidebar-primary-foreground: oklch(0.1 0.03 265);
+  --sidebar-accent: oklch(0.18 0.04 260);
+  --sidebar-accent-foreground: oklch(0.95 0.01 260);
+  --sidebar-border: oklch(0.22 0.04 260);
+  --sidebar-ring: oklch(0.65 0.18 265);
+}
+
+@theme inline {
+  /* Shadcn Core Mapping */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Charts Mapping */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Sidebar Mapping */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Typography */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  /* Radius */
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply scroll-smooth antialiased;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans min-h-screen;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+
+  code, pre {
+    @apply font-mono;
+  }
+
+  ::selection {
+    @apply bg-primary/20 text-primary;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/40;
+  }
+}

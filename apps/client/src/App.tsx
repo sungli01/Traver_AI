@@ -1,0 +1,107 @@
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { HashRouter, Routes, Route } from "react-router-dom";
+import { Layout } from "@/components/Layout";
+import { ROUTE_PATHS } from "@/lib/index";
+import Dashboard from "@/pages/Dashboard";
+import Agents from "@/pages/Agents";
+import Trips from "@/pages/Trips";
+import Payment from "@/pages/Payment";
+import Settings from "@/pages/Settings";
+import Security from "@/pages/Security";
+import Blockchain from "@/pages/Blockchain";
+
+/**
+ * @description Skywork 기반 개인화 멀티에이전트 여행 서비스 - VoyageSafe AI
+ * 2026년 최신 보안 강화 시스템: PII 마스킹, 데이터 격리, 블록체인 증명
+ */
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5분
+      retry: 1,
+    },
+  },
+});
+
+const App = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner position="top-right" expand={false} richColors />
+        <HashRouter>
+          <Layout>
+            <Routes>
+              {/* 메인 대시보드 */}
+              <Route 
+                path={ROUTE_PATHS.DASHBOARD} 
+                element={<Dashboard />} 
+              />
+              
+              {/* AI 에이전트 관리 */}
+              <Route 
+                path={ROUTE_PATHS.AGENTS} 
+                element={<Agents />} 
+              />
+              
+              {/* 여행 일정 및 예약 관리 */}
+              <Route 
+                path={ROUTE_PATHS.TRIPS} 
+                element={<Trips />} 
+              />
+              
+              {/* 결제 정보 및 카드 관리 */}
+              <Route 
+                path={ROUTE_PATHS.PAYMENT} 
+                element={<Payment />} 
+              />
+              
+              {/* 사용자 설정 및 선호도 */}
+              <Route 
+                path={ROUTE_PATHS.SETTINGS} 
+                element={<Settings />} 
+              />
+              
+              {/* 보안 센터 - PII 마스킹 및 데이터 격리 */}
+              <Route 
+                path={ROUTE_PATHS.SECURITY} 
+                element={<Security />} 
+              />
+              
+              {/* 블록체인 증명 센터 */}
+              <Route 
+                path={ROUTE_PATHS.BLOCKCHAIN} 
+                element={<Blockchain />} 
+              />
+
+              {/* 404 페이지 - 요청된 경로가 없을 경우 */}
+              <Route 
+                path="*" 
+                element={
+                  <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+                    <h2 className="text-4xl font-bold text-primary">404</h2>
+                    <p className="text-muted-foreground text-lg">
+                      요청하신 페이지를 찾을 수 없습니다.
+                    </p>
+                    <button 
+                      onClick={() => window.location.href = '#' + ROUTE_PATHS.DASHBOARD}
+                      className="mt-4 px-6 py-2 bg-primary text-primary-foreground rounded-full hover:opacity-90 transition-opacity"
+                    >
+                      홈으로 돌아가기
+                    </button>
+                  </div>
+                } 
+              />
+            </Routes>
+          </Layout>
+        </HashRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
+
+export default App;
