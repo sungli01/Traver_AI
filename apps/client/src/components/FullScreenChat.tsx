@@ -196,18 +196,73 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
     onScheduleSaved?.();
   };
 
+  const [editChatOpen, setEditChatOpen] = useState(false);
+  const [editChatMessages, setEditChatMessages] = useState<ChatMessage[]>([]);
+  const [editChatInput, setEditChatInput] = useState('');
+  const [editChatLoading, setEditChatLoading] = useState(false);
+
   const handleAIEditRequest = (sd: ScheduleData) => {
-    // Reset status to planning when requesting AI edit
+    // Stay in schedule mode — open inline edit chat instead of going back to full chat
     const updated = { ...sd, status: 'planning' as const, updatedAt: new Date().toISOString() };
     saveTrip(updated);
     setScheduleData(updated);
-    setScheduleMode(false);
+    setLiveScheduleData(updated);
     onScheduleSaved?.();
-    const summary = sd.days.map(d =>
-      `Day${d.day}(${d.date}): ${d.activities.map(a => a.title).join(', ')}`
+    setEditChatOpen(true);
+    setEditChatMessages([{
+      role: 'assistant',
+      content: `현재 일정을 확인했습니다. 어떤 부분을 수정할까요?\n(예: "Day3 점심을 현지 맛집으로 변경해줘", "Day5에 골프장 추가해줘")`
+    }]);
+  };
+
+  const sendEditChatMessage = async (text: string) => {
+    if (!text.trim() || editChatLoading || !scheduleData) return;
+    const userMsg: ChatMessage = { role: 'user', content: text.trim() };
+    setEditChatMessages(prev => [...prev, userMsg]);
+    setEditChatInput('');
+    setEditChatLoading(true);
+
+    // Build compact context from current schedule
+    const compactSchedule = scheduleData.days.map(d =>
+      `Day${d.day}(${d.date} ${d.theme}): ${d.activities.map(a => `${a.title}(${a.category},${a.cost})`).join(' → ')}${d.accommodation ? ` [숙소:${d.accommodation.name}]` : ''}`
     ).join('\n');
-    const msg = `이 일정을 수정해줘:\n${summary}\n\n수정 요청: `;
-    setInput(msg);
+
+    const contextMsg = `[기존 일정 컨텍스트 - 수정 요청된 부분만 변경하세요]\n${scheduleData.title} | ${scheduleData.destination}\n${compactSchedule}\n\n사용자 수정 요청: ${text.trim()}`;
+
+    try {
+      const res = await fetch(`${apiUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: contextMsg, type: 'modify' }),
+      });
+      const data = await res.json();
+      const reply = data.response || data.message || '응답을 받지 못했습니다.';
+      
+      // Check if response contains itinerary JSON
+      const itinerary = tryParseItinerary(reply);
+      if (itinerary) {
+        // Update schedule with new itinerary
+        const newSchedule = itineraryToSchedule(itinerary);
+        newSchedule.id = scheduleData.id; // Keep same ID
+        newSchedule.status = 'planning';
+        saveTrip(newSchedule);
+        setScheduleData(newSchedule);
+        setLiveScheduleData(newSchedule);
+        setLatestItinerary(itinerary);
+        onScheduleSaved?.();
+        
+        // Extract text before JSON as change summary
+        const jsonStart = reply.indexOf('{');
+        const summaryText = jsonStart > 0 ? reply.slice(0, jsonStart).trim() : '일정이 수정되었습니다.';
+        setEditChatMessages(prev => [...prev, { role: 'assistant', content: summaryText || '✅ 일정이 수정되었습니다. 좌측에서 변경 내용을 확인하세요.' }]);
+      } else {
+        setEditChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      }
+    } catch (e) {
+      setEditChatMessages(prev => [...prev, { role: 'assistant', content: '오류가 발생했습니다. 다시 시도해주세요.' }]);
+    } finally {
+      setEditChatLoading(false);
+    }
   };
 
   // Active day tracking for map
@@ -284,9 +339,55 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
                 onActivitySelect={handleActivitySelect}
               />
             </div>
-            {showMap && (
-              <div className="w-[55%] animate-in slide-in-from-right duration-300">
-                <ScheduleMap scheduleData={mapData} activeDay={activeDay ?? undefined} selectedActivityId={selectedActivityId} />
+            {(showMap || editChatOpen) && (
+              <div className="w-[55%] animate-in slide-in-from-right duration-300 flex flex-col">
+                {/* Right panel tabs: Map / AI Chat */}
+                <div className="flex border-b border-border shrink-0 bg-background">
+                  <button
+                    onClick={() => { setShowMap(true); setEditChatOpen(false); }}
+                    className={`flex-1 py-2 text-xs font-semibold text-center transition-colors ${showMap && !editChatOpen ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}
+                  >📍 지도</button>
+                  <button
+                    onClick={() => { setEditChatOpen(true); setShowMap(false); }}
+                    className={`flex-1 py-2 text-xs font-semibold text-center transition-colors ${editChatOpen ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}
+                  >💬 AI 수정</button>
+                </div>
+                {editChatOpen ? (
+                  <div className="flex-1 flex flex-col min-h-0">
+                    <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                      {editChatMessages.map((msg, i) => (
+                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[90%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
+                            msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
+                          }`}>{msg.content}</div>
+                        </div>
+                      ))}
+                      {editChatLoading && (
+                        <div className="flex justify-start">
+                          <div className="bg-muted rounded-2xl px-3 py-2 text-sm">
+                            <Loader2 className="w-4 h-4 animate-spin inline mr-1" /> 수정 중...
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <form onSubmit={e => { e.preventDefault(); sendEditChatMessage(editChatInput); }} className="p-3 border-t border-border flex gap-2">
+                      <input
+                        value={editChatInput}
+                        onChange={e => setEditChatInput(e.target.value)}
+                        placeholder="수정할 내용을 입력..."
+                        className="flex-1 rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                        disabled={editChatLoading}
+                      />
+                      <Button type="submit" size="sm" className="rounded-xl" disabled={editChatLoading || !editChatInput.trim()}>
+                        <Send className="w-4 h-4" />
+                      </Button>
+                    </form>
+                  </div>
+                ) : (
+                  <div className="flex-1">
+                    <ScheduleMap scheduleData={mapData} activeDay={activeDay ?? undefined} selectedActivityId={selectedActivityId} />
+                  </div>
+                )}
               </div>
             )}
           </div>
