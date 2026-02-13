@@ -466,7 +466,8 @@ export default function Trips() {
                     const summary = trip.days.map(d =>
                       `Day${d.day}: ${d.activities.map(a => a.title).join(', ')}`
                     ).join('\n');
-                    setChatInitialMessage(`이전 일정을 이어서 설계해줘:\n제목: ${trip.title}\n목적지: ${trip.destination}\n기간: ${trip.period}\n\n현재 일정:\n${summary}`);
+                    const periodText = trip.period || trip.days.map(d => `Day${d.day}`).join('~') || '미정';
+                    setChatInitialMessage(`이전 일정을 이어서 설계해줘. 반드시 JSON 형식으로 응답해줘:\n제목: ${trip.title}\n목적지: ${trip.destination}\n기간: ${periodText}\n\n[기존 일정 컨텍스트]\n${summary}`);
                     setViewMode('chat');
                   } else {
                     handleOpenSavedTrip(trip);
