@@ -101,8 +101,19 @@ export function ScheduleMap({ scheduleData, activeDay, className = '', selectedA
       day.activities.forEach((act, idx) => {
         if (!act.lat || !act.lng) return;
         const latlng: L.LatLngExpression = [act.lat, act.lng];
-        // Only add non-transport activities to polyline coords
-        if (act.category !== 'transport') {
+        // Exclude long-haul flights (>500km from nearest non-transport), keep local transport (airport→hotel)
+        if (act.category === 'transport') {
+          const nearby = day.activities.filter(a => a.id !== act.id && a.lat && a.lng && a.category !== 'transport');
+          const minDist = nearby.length > 0
+            ? Math.min(...nearby.map(a => haversineDistance(act.lat!, act.lng!, a.lat!, a.lng!)))
+            : 9999;
+          if (minDist > 500) {
+            // Long-haul flight — marker only, skip polyline
+          } else {
+            coords.push(latlng);
+            coordActivities.push(act);
+          }
+        } else {
           coords.push(latlng);
           coordActivities.push(act);
         }

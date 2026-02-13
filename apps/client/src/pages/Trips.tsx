@@ -360,10 +360,10 @@ export default function Trips() {
       {/* 요약 대시보드 위젯 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[ 
-          { label: '전체 여행', value: stats.total, icon: MapPin, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-          { label: '확정된 예약', value: stats.upcoming, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-          { label: '설계 진행 중', value: stats.planning, icon: Clock, color: 'text-accent', bg: 'bg-accent/10' },
-          { label: '누적 지출 금액', value: formatCurrency(stats.totalSpent), icon: Wallet, color: 'text-primary', bg: 'bg-primary/10' },
+          { label: '전체 여행', value: stats.total, icon: MapPin, color: 'text-blue-500', bg: 'bg-blue-500/10', tab: 'all' },
+          { label: '확정된 예약', value: stats.upcoming, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10', tab: 'confirmed' },
+          { label: '설계 진행 중', value: stats.planning, icon: Clock, color: 'text-accent', bg: 'bg-accent/10', tab: 'planning' },
+          { label: '누적 지출 금액', value: formatCurrency(stats.totalSpent), icon: Wallet, color: 'text-primary', bg: 'bg-primary/10', tab: undefined },
         ].map((stat, i) => (
           <motion.div
             key={stat.label}
@@ -371,7 +371,10 @@ export default function Trips() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           >
-            <Card className="border-none shadow-sm hover:shadow-lg transition-all bg-card/40 backdrop-blur-md rounded-[2rem] overflow-hidden group">
+            <Card
+              className={`border-none shadow-sm hover:shadow-lg transition-all bg-card/40 backdrop-blur-md rounded-[2rem] overflow-hidden group ${stat.tab ? 'cursor-pointer' : ''}`}
+              onClick={() => stat.tab && setActiveTab(stat.tab)}
+            >
               <CardContent className="p-7 flex items-center gap-5">
                 <div className={`p-4 rounded-[1.25rem] ${stat.bg} ${stat.color} transition-transform group-hover:scale-110 duration-500`}>
                   <stat.icon className="w-7 h-7" />
@@ -436,7 +439,18 @@ export default function Trips() {
                 animate={{ opacity: 1, y: 0 }}
                 whileHover={{ y: -2 }}
                 className="cursor-pointer"
-                onClick={() => handleOpenSavedTrip(trip)}
+                onClick={() => {
+                  if (trip.status === 'planning') {
+                    // Planning trips → open in concierge chat for continued design
+                    const summary = trip.days.map(d =>
+                      `Day${d.day}: ${d.activities.map(a => a.title).join(', ')}`
+                    ).join('\n');
+                    setChatInitialMessage(`이전 일정을 이어서 설계해줘:\n제목: ${trip.title}\n목적지: ${trip.destination}\n기간: ${trip.period}\n\n현재 일정:\n${summary}`);
+                    setViewMode('chat');
+                  } else {
+                    handleOpenSavedTrip(trip);
+                  }
+                }}
               >
                 <Card className="border shadow-sm hover:shadow-lg transition-all rounded-2xl overflow-hidden relative">
                   <CardContent className="p-5 space-y-3">
