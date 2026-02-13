@@ -234,25 +234,35 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
   }, []);
 
   // Render place preview map with Leaflet
+  const placeMapInstanceRef = useRef<any>(null);
   useEffect(() => {
     if (!placePreview || !placeMapRef.current) return;
-    const L = (window as any).L;
-    if (!L) {
-      // Dynamically import leaflet
-      import('leaflet').then(leaflet => {
-        const map = leaflet.default.map(placeMapRef.current!, { zoomControl: true }).setView([placePreview.lat, placePreview.lng], 15);
-        leaflet.default.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
-        leaflet.default.marker([placePreview.lat, placePreview.lng]).addTo(map).bindPopup(`<strong>${placePreview.title}</strong>`).openPopup();
-        setTimeout(() => map.invalidateSize(), 100);
-        return () => { map.remove(); };
-      });
-    } else {
+    // Cleanup previous map
+    if (placeMapInstanceRef.current) {
+      try { placeMapInstanceRef.current.remove(); } catch {}
+      placeMapInstanceRef.current = null;
+    }
+    const initMap = (L: any) => {
+      if (!placeMapRef.current) return;
       const map = L.map(placeMapRef.current, { zoomControl: true }).setView([placePreview.lat, placePreview.lng], 15);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
       L.marker([placePreview.lat, placePreview.lng]).addTo(map).bindPopup(`<strong>${placePreview.title}</strong>`).openPopup();
       setTimeout(() => map.invalidateSize(), 100);
-      return () => { map.remove(); };
+      setTimeout(() => map.invalidateSize(), 500);
+      placeMapInstanceRef.current = map;
+    };
+    const L = (window as any).L;
+    if (!L) {
+      import('leaflet').then(leaflet => initMap(leaflet.default));
+    } else {
+      initMap(L);
     }
+    return () => {
+      if (placeMapInstanceRef.current) {
+        try { placeMapInstanceRef.current.remove(); } catch {}
+        placeMapInstanceRef.current = null;
+      }
+    };
   }, [placePreview]);
 
   const [editChatOpen, setEditChatOpen] = useState(false);
@@ -595,7 +605,7 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
             <MapPin className="w-4 h-4 text-primary" />
             <span className="text-sm font-bold text-foreground">📍 {placePreview.title}</span>
           </div>
-          <Button variant="outline" size="sm" className="rounded-xl gap-1.5 text-xs" onClick={() => setPlacePreview(null)}>
+          <Button variant="outline" size="sm" className="rounded-xl gap-1.5 text-xs" onClick={() => { setPlacePreview(null); setMobileTab('chat'); }}>
             <X className="w-3.5 h-3.5" /> 닫기
           </Button>
         </div>
