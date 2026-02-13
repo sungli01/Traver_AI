@@ -1,4 +1,4 @@
-import { useState, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useMemo, lazy, Suspense, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plane, UtensilsCrossed, MapPin, ShoppingBag, Sparkles, Coffee,
@@ -113,6 +113,190 @@ function Connector() {
   );
 }
 
+/* ── Place Detail Modal ── */
+function PlaceDetailModal({ activity, onClose }: { activity: Activity; onClose: () => void }) {
+  const d = activity.detail;
+  const cfg = getConfig(activity.category);
+  if (!d) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ y: 100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 100, opacity: 0 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          className="w-full sm:max-w-md max-h-[85vh] bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className={`px-5 pt-5 pb-3 ${cfg.bg} bg-opacity-10`}>
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">{categoryConfig[activity.category]?.emoji || '📍'}</span>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cfg.bg} text-white`}>{cfg.label}</span>
+                </div>
+                <h3 className="text-xl font-black text-gray-900 dark:text-gray-50 leading-tight">{activity.title}</h3>
+                {activity.description && <p className="text-sm text-gray-500 mt-1">{activity.description}</p>}
+              </div>
+              <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shrink-0">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {/* Rating */}
+            {d.rating && (
+              <div className="flex items-center gap-1.5 mt-2">
+                <div className="flex items-center gap-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star key={i} className={`w-4 h-4 ${i < Math.floor(d.rating!) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
+                  ))}
+                </div>
+                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{d.rating}</span>
+              </div>
+            )}
+            {d.reviewSummary && <p className="text-xs text-gray-500 mt-1 italic">"{d.reviewSummary}"</p>}
+          </div>
+
+          {/* Body */}
+          <div className="px-5 py-4 overflow-y-auto max-h-[55vh] space-y-3">
+            {/* Cost & Time */}
+            <div className="flex gap-3">
+              {activity.cost && (
+                <div className="flex-1 bg-blue-50 dark:bg-blue-950/30 rounded-xl p-3 text-center">
+                  <DollarSign className="w-4 h-4 mx-auto text-blue-500 mb-1" />
+                  <p className="text-xs text-gray-500">비용</p>
+                  <p className="text-sm font-bold text-blue-700 dark:text-blue-300">{activity.cost}</p>
+                </div>
+              )}
+              {d.duration && (
+                <div className="flex-1 bg-purple-50 dark:bg-purple-950/30 rounded-xl p-3 text-center">
+                  <Timer className="w-4 h-4 mx-auto text-purple-500 mb-1" />
+                  <p className="text-xs text-gray-500">소요시간</p>
+                  <p className="text-sm font-bold text-purple-700 dark:text-purple-300">{d.duration}</p>
+                </div>
+              )}
+              {d.admission && (
+                <div className="flex-1 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl p-3 text-center">
+                  <Info className="w-4 h-4 mx-auto text-emerald-500 mb-1" />
+                  <p className="text-xs text-gray-500">입장료</p>
+                  <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">{d.admission}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Info rows */}
+            <div className="space-y-2">
+              {d.address && (
+                <div className="flex items-start gap-3 py-2 border-b border-gray-100 dark:border-gray-800">
+                  <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div><p className="text-xs text-gray-400">주소</p><p className="text-sm text-gray-700 dark:text-gray-300">{d.address}</p></div>
+                </div>
+              )}
+              {d.hours && (
+                <div className="flex items-start gap-3 py-2 border-b border-gray-100 dark:border-gray-800">
+                  <Clock className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div><p className="text-xs text-gray-400">운영시간</p><p className="text-sm text-gray-700 dark:text-gray-300">{d.hours}</p></div>
+                </div>
+              )}
+              {d.phone && (
+                <div className="flex items-start gap-3 py-2 border-b border-gray-100 dark:border-gray-800">
+                  <Phone className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div><p className="text-xs text-gray-400">전화번호</p><a href={`tel:${d.phone}`} className="text-sm text-blue-600">{d.phone}</a></div>
+                </div>
+              )}
+              {d.website && (
+                <div className="flex items-start gap-3 py-2 border-b border-gray-100 dark:border-gray-800">
+                  <Globe className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div><p className="text-xs text-gray-400">홈페이지</p><a href={d.website} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all">{d.website}</a></div>
+                </div>
+              )}
+            </div>
+
+            {/* Restaurant specific */}
+            {d.menu && d.menu.length > 0 && (
+              <div className="bg-orange-50 dark:bg-orange-950/20 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Utensils className="w-4 h-4 text-orange-500" />
+                  <span className="text-sm font-bold text-orange-700 dark:text-orange-300">대표 메뉴</span>
+                </div>
+                <ul className="space-y-1">
+                  {d.menu.map((m, i) => <li key={i} className="text-sm text-gray-700 dark:text-gray-300">• {m}</li>)}
+                </ul>
+                {d.priceRange && <p className="text-xs text-gray-500 mt-2">💰 가격대: {d.priceRange}</p>}
+                {d.waitTime && <p className="text-xs text-gray-500">⏳ 웨이팅: {d.waitTime}</p>}
+                {d.reservation && <p className="text-xs text-gray-500">📞 예약: {d.reservation}</p>}
+              </div>
+            )}
+
+            {/* Accommodation specific */}
+            {(d.checkIn || d.checkOut) && (
+              <div className="bg-indigo-50 dark:bg-indigo-950/20 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Hotel className="w-4 h-4 text-indigo-500" />
+                  <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300">숙소 정보</span>
+                </div>
+                {d.checkIn && <p className="text-sm text-gray-700 dark:text-gray-300">체크인: {d.checkIn}</p>}
+                {d.checkOut && <p className="text-sm text-gray-700 dark:text-gray-300">체크아웃: {d.checkOut}</p>}
+                {d.breakfast && <p className="text-sm text-gray-700 dark:text-gray-300">조식: {d.breakfast}</p>}
+                {d.facilities && d.facilities.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {d.facilities.map((f, i) => (
+                      <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">{f}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Signature */}
+            {activity.signature && (
+              <div className="bg-amber-50 dark:bg-amber-950/20 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                  <span className="text-sm font-bold text-amber-700 dark:text-amber-300">시그니처</span>
+                </div>
+                <p className="text-sm text-amber-700 dark:text-amber-400">{activity.signature}</p>
+              </div>
+            )}
+
+            {/* Tips */}
+            {d.tips && (
+              <div className="bg-green-50 dark:bg-green-950/20 rounded-xl p-3">
+                <p className="text-xs font-bold text-green-700 dark:text-green-300 mb-1">💡 여행자 팁</p>
+                <p className="text-sm text-green-700 dark:text-green-400">{d.tips}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer actions */}
+          <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-800 flex gap-2">
+            {activity.link && (
+              <a href={activity.link} target="_blank" rel="noopener noreferrer" className="flex-1">
+                <button className="w-full h-10 rounded-xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity">
+                  <ExternalLink className="w-4 h-4" /> {activity.linkLabel || '자세히 보기'}
+                </button>
+              </a>
+            )}
+            <a href={mapsUrl(activity.title, '')} target="_blank" rel="noopener noreferrer" className={activity.link ? '' : 'flex-1'}>
+              <button className="h-10 px-4 rounded-xl bg-emerald-500 text-white text-sm font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity">
+                <Navigation className="w-4 h-4" /> 지도
+              </button>
+            </a>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 /* ── Place card (RAMZI style) ── */
 function PlaceCard({ activity, index, destination, isLast, prevActivity, onPlaceClick }: { activity: Activity; index: number; destination: string; isLast: boolean; prevActivity?: Activity; onPlaceClick?: (activity: Activity) => void }) {
   const cfg = getConfig(activity.category);
@@ -131,8 +315,15 @@ function PlaceCard({ activity, index, destination, isLast, prevActivity, onPlace
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <h4
-                className={`font-bold text-sm leading-tight ${activity.lat && activity.lng ? 'text-blue-700 dark:text-blue-400 underline decoration-dotted cursor-pointer hover:text-blue-500 transition-colors' : 'text-gray-900 dark:text-gray-100'}`}
-                onClick={() => { if (activity.lat && activity.lng && onPlaceClick) onPlaceClick(activity); }}
+                className={`font-bold text-sm leading-tight ${(activity.detail || (activity.lat && activity.lng)) ? 'text-blue-700 dark:text-blue-400 underline decoration-dotted cursor-pointer hover:text-blue-500 transition-colors' : 'text-gray-900 dark:text-gray-100'}`}
+                onClick={() => {
+                  if (activity.detail) {
+                    // Dispatch custom event to open detail modal
+                    window.dispatchEvent(new CustomEvent('open-place-detail', { detail: activity }));
+                  } else if (activity.lat && activity.lng && onPlaceClick) {
+                    onPlaceClick(activity);
+                  }
+                }}
               >{activity.title}</h4>
               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                 <span className={`text-[11px] font-medium ${cfg.color}`}>{cfg.label}</span>
@@ -371,6 +562,7 @@ export function ItineraryCard({ data, onMoveToSchedule, onPlaceClick }: { data: 
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set([1]));
   const [showMap, setShowMap] = useState(false);
   const [showCost, setShowCost] = useState(false);
+  const [detailActivity, setDetailActivity] = useState<Activity | null>(null);
 
   // Extract places with coordinates for map
   const mapPlaces = useMemo(() => {
@@ -396,6 +588,15 @@ export function ItineraryCard({ data, onMoveToSchedule, onPlaceClick }: { data: 
       return next;
     });
   };
+
+  // Listen for place detail open events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setDetailActivity((e as CustomEvent).detail as Activity);
+    };
+    window.addEventListener('open-place-detail', handler);
+    return () => window.removeEventListener('open-place-detail', handler);
+  }, []);
 
   const expandAll = () => {
     setExpandedDays(new Set(data.days.map(d => d.day)));
@@ -515,6 +716,11 @@ export function ItineraryCard({ data, onMoveToSchedule, onPlaceClick }: { data: 
             📋 스케줄 노트로 옮기기
           </Button>
         </div>
+      )}
+
+      {/* Place detail modal */}
+      {detailActivity?.detail && (
+        <PlaceDetailModal activity={detailActivity} onClose={() => setDetailActivity(null)} />
       )}
     </div>
   );

@@ -166,7 +166,17 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
       setCurrentStep(STEPS.length - 1);
 
       const itinerary = tryParseItinerary(reply);
-      if (itinerary) setLatestItinerary(itinerary);
+      if (itinerary) {
+        setLatestItinerary(itinerary);
+        // Auto-transition to schedule editor after itinerary is generated
+        setTimeout(() => {
+          const sd = itineraryToSchedule(itinerary);
+          saveTrip(sd);
+          setScheduleData(sd);
+          setScheduleMode(true);
+          onScheduleSaved?.();
+        }, 1500);
+      }
 
       // Extract change summary text before JSON (if any)
       let summaryText = '';
@@ -631,13 +641,16 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
     <div className="flex flex-col h-full overflow-y-auto p-2 lg:p-3">
       {latestItinerary ? (
         <div className="space-y-3">
+          <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-4 text-center">
+            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 mb-2">✅ 일정이 생성되었습니다! 잠시 후 자동으로 이동합니다.</p>
+            <Button
+              className="w-full rounded-2xl h-12 gap-2 text-base font-semibold shadow-lg"
+              onClick={handleMoveToSchedule}
+            >
+              📋 컨시어지(스케줄 편집)로 이동
+            </Button>
+          </div>
           <ItineraryCard data={latestItinerary} onPlaceClick={handlePlaceClick} />
-          <Button
-            className="w-full rounded-2xl h-12 gap-2 text-base font-semibold shadow-lg"
-            onClick={handleMoveToSchedule}
-          >
-            📋 스케줄 노트로 옮기기
-          </Button>
         </div>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground text-center py-12">
