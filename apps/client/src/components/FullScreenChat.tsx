@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Loader2, CheckCircle2, ArrowLeft, MessageSquare } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
+import { Send, Loader2, CheckCircle2, ArrowLeft, MessageSquare, Map as MapIcon, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useSecurityStore } from '@/stores/securityStore';
 import { ItineraryCard, tryParseItinerary, type Itinerary } from '@/components/ItineraryCard';
 import { ScheduleEditor, itineraryToSchedule, saveTrip, type ScheduleData } from '@/components/ScheduleEditor';
+import { ScheduleMap } from '@/components/ScheduleMap';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -83,6 +84,11 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
     setLoading(true);
     setCurrentStep(0);
 
+    // Broadcast active agents
+    window.dispatchEvent(new CustomEvent('agent-status', {
+      detail: { agents: ['planner', 'concierge', 'research'], active: true }
+    }));
+
     clearStepTimers();
     for (let i = 1; i < STEPS.length - 1; i++) {
       stepTimers.current.push(setTimeout(() => setCurrentStep(i), i * 2000));
@@ -116,6 +122,10 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
     } finally {
       setLoading(false);
       setTimeout(() => setCurrentStep(-1), 2000);
+      // Deactivate agents
+      window.dispatchEvent(new CustomEvent('agent-status', {
+        detail: { agents: ['planner', 'concierge', 'research'], active: false }
+      }));
     }
   }, [loading, maskingEnabled, maskPII, addLog, messages]);
 
@@ -155,15 +165,79 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
     setInput(msg);
   };
 
-  // Schedule editor mode
+  // Active day tracking for map
+  const [activeDay, setActiveDay] = useState<number | null>(null);
+  const [liveScheduleData, setLiveScheduleData] = useState<ScheduleData | null>(scheduleData);
+  const [scheduleMobileTab, setScheduleMobileTab] = useState<'editor' | 'map'>('editor');
+
+  // Sync liveScheduleData when scheduleData changes externally
+  useEffect(() => {
+    if (scheduleData) setLiveScheduleData(scheduleData);
+  }, [scheduleData]);
+
+  // Schedule editor mode — split layout
   if (scheduleMode && scheduleData) {
+    const mapData = liveScheduleData || scheduleData;
     return (
-      <div className="h-full overflow-y-auto p-4 md:p-6">
-        <ScheduleEditor
-          schedule={scheduleData}
-          onBack={() => setScheduleMode(false)}
-          onRequestAIEdit={handleAIEditRequest}
-        />
+      <div className="flex flex-col h-full">
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm shrink-0">
+          <button onClick={() => setScheduleMode(false)} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors font-medium">
+            <ArrowLeft className="w-4 h-4" /> 여행 목록으로
+          </button>
+          <span className="text-sm font-semibold text-muted-foreground">📋 스케줄 노트 편집 중</span>
+        </div>
+
+        {/* Mobile tabs */}
+        <div className="flex lg:hidden border-b border-border shrink-0">
+          <button
+            onClick={() => setScheduleMobileTab('editor')}
+            className={`flex-1 py-2.5 text-sm font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${scheduleMobileTab === 'editor' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}
+          >
+            <Pencil className="w-3.5 h-3.5" /> 편집
+          </button>
+          <button
+            onClick={() => setScheduleMobileTab('map')}
+            className={`flex-1 py-2.5 text-sm font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${scheduleMobileTab === 'map' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}
+          >
+            <MapIcon className="w-3.5 h-3.5" /> 지도
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-h-0 flex">
+          {/* Desktop: side by side */}
+          <div className="hidden lg:flex flex-1">
+            <div className="w-[45%] min-w-[320px] border-r border-border overflow-y-auto p-4">
+              <ScheduleEditor
+                schedule={scheduleData}
+                onBack={() => setScheduleMode(false)}
+                onRequestAIEdit={handleAIEditRequest}
+                onActiveDayChange={setActiveDay}
+                onDataChange={setLiveScheduleData}
+              />
+            </div>
+            <div className="w-[55%]">
+              <ScheduleMap scheduleData={mapData} activeDay={activeDay ?? undefined} />
+            </div>
+          </div>
+          {/* Mobile: tab switch */}
+          <div className="lg:hidden flex-1">
+            {scheduleMobileTab === 'editor' ? (
+              <div className="h-full overflow-y-auto p-4">
+                <ScheduleEditor
+                  schedule={scheduleData}
+                  onBack={() => setScheduleMode(false)}
+                  onRequestAIEdit={handleAIEditRequest}
+                  onActiveDayChange={setActiveDay}
+                  onDataChange={setLiveScheduleData}
+                />
+              </div>
+            ) : (
+              <ScheduleMap scheduleData={mapData} activeDay={activeDay ?? undefined} className="h-full" />
+            )}
+          </div>
+        </div>
       </div>
     );
   }

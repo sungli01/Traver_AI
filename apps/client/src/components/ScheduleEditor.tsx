@@ -443,10 +443,14 @@ export function ScheduleEditor({
   schedule,
   onBack,
   onRequestAIEdit,
+  onActiveDayChange,
+  onDataChange,
 }: {
   schedule: ScheduleData;
   onBack: () => void;
   onRequestAIEdit?: (schedule: ScheduleData) => void;
+  onActiveDayChange?: (dayNum: number | null) => void;
+  onDataChange?: (data: ScheduleData) => void;
 }) {
   const [data, setData] = useState<ScheduleData>(schedule);
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set(data.days.map(d => d.id)));
@@ -465,14 +469,29 @@ export function ScheduleEditor({
     setExpandedDays(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
+      // Notify parent of active day (last expanded, or null if none)
+      if (onActiveDayChange) {
+        if (next.has(id)) {
+          const day = data.days.find(d => d.id === id);
+          if (day) onActiveDayChange(day.day);
+        } else {
+          // Find any still-expanded day
+          const expandedDay = data.days.find(d => next.has(d.id));
+          onActiveDayChange(expandedDay ? expandedDay.day : null);
+        }
+      }
       return next;
     });
   };
 
   const updateDay = useCallback((dayId: string, updated: EditableDay) => {
-    setData(prev => ({ ...prev, days: prev.days.map(d => d.id === dayId ? updated : d) }));
+    setData(prev => {
+      const next = { ...prev, days: prev.days.map(d => d.id === dayId ? updated : d) };
+      onDataChange?.(next);
+      return next;
+    });
     setSaved(false);
-  }, []);
+  }, [onDataChange]);
 
   const deleteDay = (dayId: string) => {
     setData(prev => ({
