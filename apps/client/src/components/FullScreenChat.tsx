@@ -413,7 +413,8 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
   const [activeDay, setActiveDay] = useState<number | null>(null);
   const [liveScheduleData, setLiveScheduleData] = useState<ScheduleData | null>(scheduleData);
   const [scheduleMobileTab, setScheduleMobileTab] = useState<'editor' | 'map'>('editor');
-  const [showMap, setShowMap] = useState(false);
+  const [showMap, setShowMap] = useState(true);
+  const [navigationRoute, setNavigationRoute] = useState<{ from: { lat: number; lng: number; title: string }; to: { lat: number; lng: number; title: string } } | null>(null);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
 
   const handleActivitySelect = useCallback((activityId: string) => {
@@ -481,6 +482,7 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
                 onActiveDayChange={setActiveDay}
                 onDataChange={setLiveScheduleData}
                 onActivitySelect={handleActivitySelect}
+                onNavigationRequest={(from, to) => { setNavigationRoute({ from, to }); setShowMap(true); setEditChatOpen(false); }}
               />
             </div>
             {(showMap || editChatOpen) && (
@@ -529,7 +531,7 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
                   </div>
                 ) : (
                   <div className="flex-1">
-                    <ScheduleMap scheduleData={mapData} activeDay={activeDay ?? undefined} selectedActivityId={selectedActivityId} />
+                    <ScheduleMap scheduleData={mapData} activeDay={activeDay ?? undefined} selectedActivityId={selectedActivityId} navigationRoute={navigationRoute} onCloseNavigation={() => setNavigationRoute(null)} />
                   </div>
                 )}
               </div>
@@ -546,10 +548,11 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
                   onActiveDayChange={setActiveDay}
                   onDataChange={setLiveScheduleData}
                   onActivitySelect={handleActivitySelect}
+                  onNavigationRequest={(from, to) => { setNavigationRoute({ from, to }); setScheduleMobileTab('map'); }}
                 />
               </div>
             ) : (
-              <ScheduleMap scheduleData={mapData} activeDay={activeDay ?? undefined} className="h-full" selectedActivityId={selectedActivityId} />
+              <ScheduleMap scheduleData={mapData} activeDay={activeDay ?? undefined} className="h-full" selectedActivityId={selectedActivityId} navigationRoute={navigationRoute} onCloseNavigation={() => setNavigationRoute(null)} />
             )}
           </div>
         </div>
