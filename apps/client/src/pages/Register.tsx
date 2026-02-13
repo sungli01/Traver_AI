@@ -34,7 +34,7 @@ export default function Register() {
             <Bot className="text-primary-foreground h-7 w-7" />
           </div>
           <CardTitle className="text-2xl font-bold">회원가입</CardTitle>
-          <CardDescription>VoyageSafe AI와 함께 안전한 여행을 시작하세요</CardDescription>
+          <CardDescription>TravelAgent AI와 함께 스마트한 여행을 시작하세요</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Social Login Buttons */}

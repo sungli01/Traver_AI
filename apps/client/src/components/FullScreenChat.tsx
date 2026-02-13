@@ -136,11 +136,25 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
       const itinerary = tryParseItinerary(reply);
       if (itinerary) setLatestItinerary(itinerary);
 
-      setMessages(prev => [...prev, {
+      // Extract change summary text before JSON (if any)
+      let summaryText = '';
+      if (itinerary) {
+        const jsonStart = reply.indexOf('{');
+        if (jsonStart > 0) {
+          summaryText = reply.substring(0, jsonStart).replace(/```json\s*/g, '').trim();
+        }
+      }
+
+      const newMessages: ChatMessage[] = [];
+      if (summaryText) {
+        newMessages.push({ role: 'assistant', content: summaryText });
+      }
+      newMessages.push({
         role: 'assistant',
         content: itinerary ? '' : reply,
         itinerary: itinerary || undefined,
-      }]);
+      });
+      setMessages(prev => [...prev, ...newMessages]);
     } catch {
       clearStepTimers();
       setCurrentStep(-1);

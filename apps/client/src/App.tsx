@@ -16,7 +16,7 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 
 /**
- * @description Skywork 기반 개인화 멀티에이전트 여행 서비스 - VoyageSafe AI
+ * @description AI 멀티에이전트 여행 서비스 - TravelAgent AI
  * 2026년 최신 보안 강화 시스템: PII 마스킹, 데이터 격리, 블록체인 증명
  */
 

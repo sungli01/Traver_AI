@@ -40,6 +40,8 @@ interface EditableAccommodation {
   name: string;
   cost: string;
   link?: string;
+  lat?: number;
+  lng?: number;
 }
 
 interface EditableDay {
@@ -109,7 +111,7 @@ export function itineraryToSchedule(data: Itinerary): ScheduleData {
         lat: a.lat,
         lng: a.lng,
       })),
-      accommodation: d.accommodation ? { name: d.accommodation.name, cost: d.accommodation.cost, link: d.accommodation.link } : undefined,
+      accommodation: d.accommodation ? { name: d.accommodation.name, cost: d.accommodation.cost, link: d.accommodation.link, lat: d.accommodation.lat, lng: d.accommodation.lng } : undefined,
     })),
     createdAt: now,
     updatedAt: now,
@@ -360,7 +362,7 @@ function AddActivityForm({ onAdd, onCancel }: { onAdd: (a: EditableActivity) => 
 
 /* ── Day Accordion ── */
 function DayAccordion({
-  day, isExpanded, onToggle, onUpdate, onDelete, destination,
+  day, isExpanded, onToggle, onUpdate, onDelete, destination, prevDayAccommodation,
 }: {
   day: EditableDay;
   isExpanded: boolean;
@@ -368,6 +370,7 @@ function DayAccordion({
   onUpdate: (d: EditableDay) => void;
   onDelete: () => void;
   destination?: string;
+  prevDayAccommodation?: EditableAccommodation & { lat?: number; lng?: number };
 }) {
   const [addingActivity, setAddingActivity] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -449,7 +452,12 @@ function DayAccordion({
 
               {/* Activities */}
               {day.activities.map((act, i) => {
-                const prev = i > 0 ? day.activities[i - 1] : undefined;
+                let prev: { lat?: number; lng?: number } | undefined;
+                if (i > 0) {
+                  prev = day.activities[i - 1];
+                } else if (prevDayAccommodation?.lat && prevDayAccommodation?.lng) {
+                  prev = prevDayAccommodation;
+                }
                 const navUrl = prev?.lat && prev?.lng && act.lat && act.lng
                   ? `https://www.google.com/maps/dir/${prev.lat},${prev.lng}/${act.lat},${act.lng}`
                   : null;
@@ -684,7 +692,7 @@ export function ScheduleEditor({
 
       {/* Days */}
       <div className="space-y-3">
-        {data.days.map((day) => (
+        {data.days.map((day, idx) => (
           <DayAccordion
             key={day.id}
             day={day}
@@ -693,6 +701,7 @@ export function ScheduleEditor({
             onUpdate={(d) => updateDay(day.id, d)}
             onDelete={() => setDeleteDayTarget(day.id)}
             destination={data.destination}
+            prevDayAccommodation={idx > 0 ? data.days[idx - 1].accommodation : undefined}
           />
         ))}
       </div>

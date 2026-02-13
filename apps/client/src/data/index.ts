@@ -10,11 +10,11 @@ import { IMAGES } from "@/assets/images";
 export const sampleAgents: TravelAgent[] = [
   {
     id: "skywork-orchestrator",
-    name: "스카이워크 오케스트레이터",
+    name: "메인 오케스트레이터",
     type: AGENT_TYPES.SKYWORK_ORCHESTRATOR,
     status: "idle",
     description: "모든 AI 에이전트를 조율하고 여행 계획의 전체적인 흐름을 관리합니다.",
-    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Skywork",
+    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Orchestrator",
     capabilities: ["에이전트 조율", "작업 분배", "성능 모니터링", "실시간 최적화"],
     lastAction: undefined,
     efficiency: 99,

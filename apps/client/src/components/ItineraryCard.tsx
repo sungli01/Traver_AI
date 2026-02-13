@@ -201,7 +201,7 @@ function AccommodationCard({ accommodation }: { accommodation: Accommodation }) 
 }
 
 /* ── Day section ── */
-function DaySection({ dayData, destination, isExpanded, onToggle }: { dayData: Day; destination: string; isExpanded: boolean; onToggle: () => void }) {
+function DaySection({ dayData, destination, isExpanded, onToggle, prevDayAccommodation }: { dayData: Day; destination: string; isExpanded: boolean; onToggle: () => void; prevDayAccommodation?: Accommodation }) {
   return (
     <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
       {/* Day header bar */}
@@ -240,16 +240,28 @@ function DaySection({ dayData, destination, isExpanded, onToggle }: { dayData: D
           >
             <div className="px-4 pb-4 pt-3">
               {/* Activities timeline */}
-              {dayData.activities.map((activity, i) => (
-                <PlaceCard
-                  key={i}
-                  activity={activity}
-                  index={i}
-                  destination={destination}
-                  isLast={i === dayData.activities.length - 1}
-                  prevActivity={i > 0 ? dayData.activities[i - 1] : undefined}
-                />
-              ))}
+              {dayData.activities.map((activity, i) => {
+                // For first activity of the day, use previous day's accommodation as origin
+                let prevAct: Activity | undefined;
+                if (i > 0) {
+                  prevAct = dayData.activities[i - 1];
+                } else if (prevDayAccommodation?.lat && prevDayAccommodation?.lng) {
+                  prevAct = {
+                    time: '', title: prevDayAccommodation.name, description: '', category: 'rest',
+                    cost: '', lat: prevDayAccommodation.lat, lng: prevDayAccommodation.lng
+                  };
+                }
+                return (
+                  <PlaceCard
+                    key={i}
+                    activity={activity}
+                    index={i}
+                    destination={destination}
+                    isLast={i === dayData.activities.length - 1}
+                    prevActivity={prevAct}
+                  />
+                );
+              })}
 
               {/* Accommodation */}
               {dayData.accommodation && (
@@ -448,13 +460,14 @@ export function ItineraryCard({ data, onMoveToSchedule }: { data: Itinerary; onM
 
       {/* Days */}
       <div className="p-4 space-y-3">
-        {data.days.map((day) => (
+        {data.days.map((day, idx) => (
           <DaySection
             key={day.day}
             dayData={day}
             destination={data.destination}
             isExpanded={viewMode === 'full' || expandedDays.has(day.day)}
             onToggle={() => toggleDay(day.day)}
+            prevDayAccommodation={idx > 0 ? data.days[idx - 1].accommodation : undefined}
           />
         ))}
       </div>

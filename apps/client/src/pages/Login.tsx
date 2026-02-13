@@ -27,7 +27,7 @@ export default function Login() {
           <div className="mx-auto h-12 w-12 rounded-xl bg-primary flex items-center justify-center">
             <Bot className="text-primary-foreground h-7 w-7" />
           </div>
-          <CardTitle className="text-2xl font-bold">VoyageSafe AI 로그인</CardTitle>
+          <CardTitle className="text-2xl font-bold">TravelAgent AI 로그인</CardTitle>
           <CardDescription>안전한 AI 여행 서비스에 오신 것을 환영합니다</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

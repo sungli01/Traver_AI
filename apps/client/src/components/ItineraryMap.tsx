@@ -140,7 +140,7 @@ export async function geocodePlace(query: string): Promise<{ lat: number; lng: n
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`,
-      { headers: { 'User-Agent': 'VoyageSafe-AI/1.0' } }
+      { headers: { 'User-Agent': 'TravelAgent-AI/1.0' } }
     );
     const data = await res.json();
     if (data.length > 0) {

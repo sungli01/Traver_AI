@@ -14,7 +14,6 @@ import { sampleAgents, sampleTrips } from '@/data/index';
 import { TripGrid } from '@/components/TripCards';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { IMAGES } from '@/assets/images';
 import { Link } from 'react-router-dom';
 
 const fadeInUp = {
@@ -45,11 +44,7 @@ export default function Dashboard() {
         transition={{ duration: 0.6 }}
         className="relative h-[200px] sm:h-[280px] md:h-[320px] rounded-3xl overflow-hidden"
       >
-        <img 
-          src={IMAGES.SKYWORK_ARCHITECTURE_20260208_005257_31} 
-          alt="Skywork AI Architecture"
-          className="absolute inset-0 w-full h-full object-cover opacity-40"
-        />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-blue-600/10 to-purple-600/10" />
         <div className="absolute inset-0 bg-gradient-to-r from-background via-background/60 to-transparent flex flex-col justify-center px-8 md:px-12">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -58,14 +53,13 @@ export default function Dashboard() {
           >
             <span className="inline-flex items-center px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-4 border border-primary/20">
               <ShieldCheck className="w-3 h-3 mr-1.5" />
-              Skywork 멀티에이전트 시스템 가동 중
+              AI 멀티에이전트 시스템 가동 중
             </span>
             <h1 className="text-2xl sm:text-3xl md:text-5xl font-bold mb-4 tracking-tight">
-              안전한 여행, <span className="text-primary">VoyageSafe</span>
+              스마트한 여행, <span className="text-primary">TravelAgent AI</span>
             </h1>
             <p className="text-muted-foreground text-sm sm:text-lg max-w-md mb-8">
-              개인정보 보호와 블록체인 증명이 적용된 차세대 AI 여행 서비스입니다. 
-              모든 데이터는 암호화되어 안전하게 관리됩니다.
+              AI 멀티에이전트가 최적의 여행 계획을 설계합니다. 맞춤 일정, 실시간 가격 비교, 스마트 예약.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <Button size="lg" className="rounded-full px-8 shadow-lg shadow-primary/20" asChild>

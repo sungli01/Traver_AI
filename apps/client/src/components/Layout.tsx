@@ -12,7 +12,8 @@ import {
   Menu, 
   X, 
   LogOut,
-  User
+  User,
+  Globe
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ROUTE_PATHS } from '@/lib/index';
@@ -48,7 +49,7 @@ function SidebarAgentGrid({ isOpen, activeAgents }: { isOpen: boolean; activeAge
   
   if (!isOpen) {
     return (
-      <div className="px-2 py-3 border-t border-sidebar-border">
+      <div className="px-2 py-3 border-t border-sidebar-border bg-sidebar relative z-10">
         <button
           onClick={() => navigate(ROUTE_PATHS.AGENTS)}
           className="w-full flex justify-center p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
@@ -61,7 +62,7 @@ function SidebarAgentGrid({ isOpen, activeAgents }: { isOpen: boolean; activeAge
   }
 
   return (
-    <div className="px-4 py-3 border-t border-sidebar-border">
+    <div className="px-4 py-3 border-t border-sidebar-border bg-sidebar relative z-10">
       <button
         onClick={() => navigate(ROUTE_PATHS.AGENTS)}
         className="text-[11px] font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-3 hover:text-primary transition-colors cursor-pointer"
@@ -133,11 +134,11 @@ export function Layout({ children }: LayoutProps) {
         <div className="flex h-16 items-center px-6 border-b border-sidebar-border">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-              <Bot className="text-primary-foreground h-5 w-5" />
+              <Globe className="text-primary-foreground h-5 w-5" />
             </div>
             {isSidebarOpen && (
               <span className="font-bold text-lg tracking-tight whitespace-nowrap text-sidebar-foreground">
-                VoyageSafe AI
+                TravelAgent AI
               </span>
             )}
           </div>

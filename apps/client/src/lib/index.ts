@@ -10,9 +10,9 @@ export const ROUTE_PATHS = {
   REGISTER: '/register',
 } as const;
 
-// Skywork 멀티에이전트 시스템 타입
+// 멀티에이전트 시스템 타입
 export const AGENT_TYPES = {
-  // Core Skywork Agents
+  // Core Agents
   SKYWORK_ORCHESTRATOR: 'SKYWORK_ORCHESTRATOR', // 전체 에이전트 조율
   RESEARCH_ENGINE: 'RESEARCH_ENGINE', // 실시간 여행 정보 수집
   PLANNER: 'PLANNER', // 여행 계획 수립
@@ -38,7 +38,7 @@ export const TRIP_STATUS = {
 
 export type TripStatus = keyof typeof TRIP_STATUS;
 
-// Skywork 기반 AI 에이전트 인터페이스
+// AI 에이전트 인터페이스
 export interface TravelAgent {
   id: string;
   name: string;
@@ -49,7 +49,7 @@ export interface TravelAgent {
   capabilities: string[];
   lastAction?: string;
   efficiency: number;
-  // Skywork 특화 속성
+  // 시스템 버전
   skyworkVersion: string;
   securityLevel: 'standard' | 'enhanced' | 'maximum';
   piiMaskingEnabled: boolean;
