@@ -239,9 +239,9 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
   );
 
   const previewPanel = (
-    <div className="flex flex-col h-full overflow-y-auto p-4">
+    <div className="flex flex-col h-full overflow-y-auto p-2 lg:p-3">
       {latestItinerary ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <ItineraryCard data={latestItinerary} />
           <Button
             className="w-full rounded-2xl h-12 gap-2 text-base font-semibold shadow-lg"
@@ -292,8 +292,8 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
       <div className="flex-1 min-h-0 flex">
         {/* Desktop: side by side */}
         <div className="hidden lg:flex flex-1">
-          <div className="w-1/2 border-r border-border">{chatPanel}</div>
-          <div className="w-1/2">{previewPanel}</div>
+          <div className="w-[38%] min-w-[320px] border-r border-border">{chatPanel}</div>
+          <div className="w-[62%]">{previewPanel}</div>
         </div>
         {/* Mobile: tab switch */}
         <div className="lg:hidden flex-1">
