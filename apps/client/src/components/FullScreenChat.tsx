@@ -598,15 +598,26 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
   // Fullscreen place map mode
   if (placePreview) {
     return (
-      <div className="flex flex-col h-full">
-        {/* Map header with close */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm shrink-0">
+      <div className="flex flex-col h-full relative">
+        {/* Map header with close — high z-index to stay above Leaflet */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background shadow-md shrink-0" style={{ zIndex: 1000, position: 'relative' }}>
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-primary" />
             <span className="text-sm font-bold text-foreground">📍 {placePreview.title}</span>
           </div>
-          <Button variant="outline" size="sm" className="rounded-xl gap-1.5 text-xs" onClick={() => { setPlacePreview(null); setMobileTab('chat'); }}>
+          <Button variant="default" size="sm" className="rounded-xl gap-1.5 text-xs shadow-lg" onClick={() => { setPlacePreview(null); setMobileTab('chat'); }}>
             <X className="w-3.5 h-3.5" /> 닫기
+          </Button>
+        </div>
+        {/* Floating close button on map — always visible */}
+        <div className="absolute top-16 right-4" style={{ zIndex: 1000 }}>
+          <Button
+            variant="default"
+            size="sm"
+            className="rounded-full shadow-2xl gap-1.5 text-xs h-10 px-4"
+            onClick={() => { setPlacePreview(null); setMobileTab('chat'); }}
+          >
+            <X className="w-4 h-4" /> 지도 닫기
           </Button>
         </div>
         <div className="flex-1 min-h-0">
