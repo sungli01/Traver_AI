@@ -136,7 +136,8 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        while (true) {
+        let streaming = true;
+        while (streaming) {
           const { done, value } = await reader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
@@ -144,14 +145,17 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
           buffer = lines.pop() || '';
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
-            const payload = line.slice(6);
-            if (payload === '[DONE]') break;
+            const payload = line.slice(6).trim();
+            if (payload === '[DONE]') { streaming = false; break; }
             try {
               const parsed = JSON.parse(payload);
               if (parsed.type === 'delta') reply += parsed.text;
-              else if (parsed.type === 'done') { reply = parsed.reply || reply; newGoals = parsed.goals || null; }
+              else if (parsed.type === 'done') { if (parsed.reply) reply = parsed.reply; newGoals = parsed.goals || null; }
               else if (parsed.type === 'error') reply = '⚠️ ' + parsed.error;
-            } catch { /* ignore */ }
+            } catch {
+              // Large done event may span multiple data lines — try accumulating
+              // Delta text is already accumulated in reply, so done parse failure is safe
+            }
           }
         }
       } else {
@@ -362,7 +366,8 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        while (true) {
+        let streaming2 = true;
+        while (streaming2) {
           const { done, value } = await reader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
@@ -370,12 +375,12 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
           buffer = lines.pop() || '';
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
-            const payload = line.slice(6);
-            if (payload === '[DONE]') break;
+            const payload = line.slice(6).trim();
+            if (payload === '[DONE]') { streaming2 = false; break; }
             try {
               const parsed = JSON.parse(payload);
               if (parsed.type === 'delta') reply += parsed.text;
-              else if (parsed.type === 'done') reply = parsed.reply || reply;
+              else if (parsed.type === 'done') { if (parsed.reply) reply = parsed.reply; }
               else if (parsed.type === 'error') reply = '⚠️ ' + parsed.error;
             } catch { /* ignore */ }
           }

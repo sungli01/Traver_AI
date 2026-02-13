@@ -120,7 +120,8 @@ export function TravelChatWindow() {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        while (true) {
+        let streaming = true;
+        while (streaming) {
           const { done, value } = await reader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
@@ -128,14 +129,14 @@ export function TravelChatWindow() {
           buffer = lines.pop() || '';
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
-            const payload = line.slice(6);
-            if (payload === '[DONE]') break;
+            const payload = line.slice(6).trim();
+            if (payload === '[DONE]') { streaming = false; break; }
             try {
               const parsed = JSON.parse(payload);
               if (parsed.type === 'delta') reply += parsed.text;
-              else if (parsed.type === 'done') reply = parsed.reply || reply;
+              else if (parsed.type === 'done') { if (parsed.reply) reply = parsed.reply; }
               else if (parsed.type === 'error') reply = '⚠️ ' + parsed.error;
-            } catch { /* ignore parse errors */ }
+            } catch { /* large done event parse failure is safe — delta already accumulated */ }
           }
         }
       } else {
