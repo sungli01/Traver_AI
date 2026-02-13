@@ -389,7 +389,7 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
         }
       } else {
         const data = await res.json();
-        reply = data.response || data.message || '응답을 받지 못했습니다.';
+        reply = data.reply || data.response || data.message || '응답을 받지 못했습니다.';
       }
       if (!reply) reply = '응답을 받지 못했습니다.';
       
