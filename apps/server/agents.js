@@ -231,7 +231,9 @@ async function processAgentRequest(message, context = [], options = {}) {
 ## 출력 주의
 - JSON 출력 시 반드시 완전한 JSON을 출력하라. 중간에 잘리지 않도록 간결하게 작성하라.
 - 일정이 길면 (5일 이상) 각 day의 activities를 핵심 4-5개로 제한하라.
-- \`\`\`json 블록 없이 순수 JSON만 출력하라. 앞뒤 설명 텍스트 없이 { 로 시작하고 } 로 끝나라.`,
+- \`\`\`json 블록 없이 순수 JSON만 출력하라. 앞뒤 설명 텍스트 없이 { 로 시작하고 } 로 끝나라.
+- **lat, lng 좌표는 반드시 실제 위치의 정확한 위도/경도를 포함하라. 0이나 null 금지. 지도에 표시되므로 정확해야 한다.**
+- accommodation(숙소)에도 lat, lng를 포함하라.`,
       messages: [
         ...context,
         { role: "user", content: message }
@@ -357,8 +359,8 @@ async function processAgentRequestStream(message, context = [], options = {}, on
           "description": "설명",
           "category": "transport|restaurant|attraction|shopping|activity|rest",
           "cost": "비용",
-          "lat": 0.0,
-          "lng": 0.0
+          "lat": 34.9500,
+          "lng": 127.4900
         }
       ]
     }
@@ -369,7 +371,9 @@ async function processAgentRequestStream(message, context = [], options = {}, on
 ## 출력 주의
 - JSON 출력 시 반드시 완전한 JSON을 출력하라. 중간에 잘리지 않도록 간결하게 작성하라.
 - 일정이 길면 (5일 이상) 각 day의 activities를 핵심 4-5개로 제한하라.
-- 절대로 텍스트 요약만 하지 마라. 반드시 위 JSON 형식으로 출력하라.`;
+- 절대로 텍스트 요약만 하지 마라. 반드시 위 JSON 형식으로 출력하라.
+- **lat, lng 좌표는 반드시 실제 위치의 정확한 위도/경도를 포함하라. 0이나 null 금지. 지도에 표시되므로 정확해야 한다.**
+- accommodation(숙소)에도 lat, lng를 포함하라.`;
 
     const stream = await anthropic.messages.stream({
       model: "claude-sonnet-4-20250514",
