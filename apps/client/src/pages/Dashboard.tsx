@@ -11,7 +11,8 @@ import {
   MapPin,
   Wallet,
   CheckCircle2,
-  Clock
+  Clock,
+  MoreVertical
 } from 'lucide-react';
 import { ROUTE_PATHS, formatCurrency } from '@/lib/index';
 import { sampleAgents, sampleTrips } from '@/data/index';
@@ -20,7 +21,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Link, useNavigate } from 'react-router-dom';
-import { loadSavedTrips, type ScheduleData } from '@/components/ScheduleEditor';
+import { loadSavedTrips, deleteTrip, type ScheduleData } from '@/components/ScheduleEditor';
+import { useToast } from '@/components/ui/use-toast';
 
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
@@ -38,10 +40,14 @@ const staggerContainer = {
 
 export default function Dashboard() {
   const [savedTrips, setSavedTrips] = useState<ScheduleData[]>([]);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const refreshSavedTrips = () => setSavedTrips(loadSavedTrips());
 
   useEffect(() => {
-    setSavedTrips(loadSavedTrips());
+    refreshSavedTrips();
   }, []);
 
   const confirmedCount = savedTrips.filter(t => t.status === 'confirmed').length;
@@ -152,58 +158,51 @@ export default function Dashboard() {
         </motion.div>
       </motion.div>
 
-      {/* AI Generated Trips from localStorage */}
-      {savedTrips.length > 0 && (
-        <motion.section
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          className="space-y-6"
-        >
+      {/* Confirmed trips — 진행 및 예정된 여행 */}
+      {savedTrips.filter(t => t.status === 'confirmed').length > 0 && (
+        <motion.section initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-primary" />
-              <h2 className="text-lg sm:text-2xl font-bold">내 여행 프로젝트</h2>
-              <span className="text-sm text-muted-foreground">({savedTrips.length})</span>
+              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+              <h2 className="text-lg sm:text-2xl font-bold">진행 및 예정된 여행</h2>
+              <span className="text-sm text-muted-foreground">({savedTrips.filter(t => t.status === 'confirmed').length})</span>
             </div>
             <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-primary">
-              <Link to={ROUTE_PATHS.TRIPS}>
-                전체 보기 <ArrowRight className="w-4 h-4 ml-1" />
-              </Link>
+              <Link to={ROUTE_PATHS.TRIPS}>전체 보기 <ArrowRight className="w-4 h-4 ml-1" /></Link>
             </Button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {savedTrips.map(trip => (
-              <motion.div
-                key={trip.id}
-                whileHover={{ y: -2 }}
-                className="cursor-pointer"
-                onClick={() => navigate(ROUTE_PATHS.TRIPS)}
+            {savedTrips.filter(t => t.status === 'confirmed').map(trip => (
+              <motion.div key={trip.id} whileHover={{ y: -2 }} className="cursor-pointer"
+                onClick={() => navigate(ROUTE_PATHS.TRIPS, { state: { openScheduleId: trip.id } })}
               >
-                <Card className="border shadow-sm hover:shadow-lg transition-all rounded-2xl overflow-hidden">
+                <Card className="border shadow-sm hover:shadow-lg transition-all rounded-2xl overflow-hidden relative">
                   <CardContent className="p-5 space-y-3">
                     <div className="flex items-start justify-between">
                       <div>
                         <h3 className="font-bold text-base">{trip.title}</h3>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                          <MapPin className="w-3.5 h-3.5" /> {trip.destination}
-                        </p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1"><MapPin className="w-3.5 h-3.5" /> {trip.destination}</p>
                       </div>
-                      <Badge variant="secondary" className={`text-[10px] font-bold rounded-full ${
-                        trip.status === 'confirmed'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-primary/10 text-primary'
-                      }`}>
-                        {trip.status === 'confirmed' ? '예약 확정' : '설계 중'}
-                      </Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="secondary" className="text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-700">예약 확정</Badge>
+                        <div className="relative" onClick={e => e.stopPropagation()}>
+                          <button className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setOpenMenuId(prev => prev === trip.id ? null : trip.id)}>
+                            <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                          </button>
+                          {openMenuId === trip.id && (
+                            <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-gray-900 border rounded-xl shadow-lg z-50 overflow-hidden">
+                              <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => { setOpenMenuId(null); navigate(ROUTE_PATHS.TRIPS, { state: { openScheduleId: trip.id } }); }}>✏️ 스케줄 편집</button>
+                              <button className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={() => { setOpenMenuId(null); if(confirm('이 여행을 삭제하시겠습니까?')){ deleteTrip(trip.id); refreshSavedTrips(); toast({title:'삭제 완료'}); } }}>🗑️ 삭제</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {trip.period}</span>
                       <span className="flex items-center gap-1"><Wallet className="w-3 h-3" /> {trip.totalBudget}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {trip.days.length}일 · {trip.days.reduce((s, d) => s + d.activities.length, 0)}개 장소
-                    </p>
+                    <p className="text-xs text-muted-foreground">{trip.days.length}일 · {trip.days.reduce((s, d) => s + d.activities.length, 0)}개 장소</p>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -212,26 +211,81 @@ export default function Dashboard() {
         </motion.section>
       )}
 
-      {/* Upcoming Trips Section */}
-      <motion.section 
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        className="space-y-6"
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-primary" />
-            <h2 className="text-lg sm:text-2xl font-bold">진행 및 예정된 여행</h2>
+      {/* Planning trips — 설계 중 */}
+      {savedTrips.filter(t => t.status === 'planning').length > 0 && (
+        <motion.section initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-primary" />
+              <h2 className="text-lg sm:text-2xl font-bold">설계 중인 여행</h2>
+              <span className="text-sm text-muted-foreground">({savedTrips.filter(t => t.status === 'planning').length})</span>
+            </div>
+            <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-primary">
+              <Link to={ROUTE_PATHS.TRIPS}>전체 보기 <ArrowRight className="w-4 h-4 ml-1" /></Link>
+            </Button>
           </div>
-          <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-primary">
-            <Link to={ROUTE_PATHS.TRIPS}>
-              전체 일정 보기 <ArrowRight className="w-4 h-4 ml-1" />
-            </Link>
-          </Button>
-        </div>
-        <TripGrid trips={sampleTrips} />
-      </motion.section>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {savedTrips.filter(t => t.status === 'planning').map(trip => (
+              <motion.div key={trip.id} whileHover={{ y: -2 }} className="cursor-pointer"
+                onClick={() => navigate(ROUTE_PATHS.TRIPS, { state: { openScheduleId: trip.id } })}
+              >
+                <Card className="border shadow-sm hover:shadow-lg transition-all rounded-2xl overflow-hidden relative">
+                  <CardContent className="p-5 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-bold text-base">{trip.title}</h3>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1"><MapPin className="w-3.5 h-3.5" /> {trip.destination}</p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="secondary" className="text-[10px] font-bold rounded-full bg-primary/10 text-primary">설계 중</Badge>
+                        <div className="relative" onClick={e => e.stopPropagation()}>
+                          <button className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setOpenMenuId(prev => prev === trip.id ? null : trip.id)}>
+                            <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                          </button>
+                          {openMenuId === trip.id && (
+                            <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-gray-900 border rounded-xl shadow-lg z-50 overflow-hidden">
+                              <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => { setOpenMenuId(null); navigate(ROUTE_PATHS.TRIPS, { state: { openScheduleId: trip.id } }); }}>✏️ 스케줄 편집</button>
+                              <button className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={() => { setOpenMenuId(null); if(confirm('이 여행을 삭제하시겠습니까?')){ deleteTrip(trip.id); refreshSavedTrips(); toast({title:'삭제 완료'}); } }}>🗑️ 삭제</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {trip.period}</span>
+                      <span className="flex items-center gap-1"><Wallet className="w-3 h-3" /> {trip.totalBudget}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{trip.days.length}일 · {trip.days.reduce((s, d) => s + d.activities.length, 0)}개 장소</p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </motion.section>
+      )}
+
+      {/* Sample Trips Section (demo data) */}
+      {sampleTrips.length > 0 && (
+        <motion.section 
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          className="space-y-6"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-primary" />
+              <h2 className="text-lg sm:text-2xl font-bold">샘플 여행</h2>
+            </div>
+            <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-primary">
+              <Link to={ROUTE_PATHS.TRIPS}>
+                전체 일정 보기 <ArrowRight className="w-4 h-4 ml-1" />
+              </Link>
+            </Button>
+          </div>
+          <TripGrid trips={sampleTrips} />
+        </motion.section>
+      )}
 
       {/* Quick Action Footer Card */}
       <motion.div

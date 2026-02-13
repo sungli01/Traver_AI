@@ -276,23 +276,36 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
 
   const sendEditChatMessage = async (text: string) => {
     if (!text.trim() || editChatLoading || !scheduleData) return;
-    const userMsg: ChatMessage = { role: 'user', content: text.trim() };
+    const trimmedText = text.trim();
+    const userMsg: ChatMessage = { role: 'user', content: trimmedText };
     setEditChatMessages(prev => [...prev, userMsg]);
     setEditChatInput('');
     setEditChatLoading(true);
+
+    // Detect if this is a modification request or just a chat question
+    const isModifyRequest = /수정|변경|바꿔|추가|삭제|제거|대신|다른|빼고|넣어|옮겨|교체/.test(trimmedText);
 
     // Build compact context from current schedule
     const compactSchedule = scheduleData.days.map(d =>
       `Day${d.day}(${d.date} ${d.theme}): ${d.activities.map(a => `${a.title}(${a.category},${a.cost})`).join(' → ')}${d.accommodation ? ` [숙소:${d.accommodation.name}]` : ''}`
     ).join('\n');
 
-    const contextMsg = `[기존 일정 컨텍스트 - 수정 요청된 부분만 변경하세요]\n${scheduleData.title} | ${scheduleData.destination}\n${compactSchedule}\n\n사용자 수정 요청: ${text.trim()}`;
+    let contextMsg: string;
+    let msgType: string;
+
+    if (isModifyRequest) {
+      msgType = 'modify';
+      contextMsg = `[기존 일정 컨텍스트 - 수정 요청된 부분만 변경하세요]\n${scheduleData.title} | ${scheduleData.destination}\n${compactSchedule}\n\n사용자 수정 요청: ${trimmedText}`;
+    } else {
+      msgType = 'chat';
+      contextMsg = `[참고 일정: ${scheduleData.title} | ${scheduleData.destination}]\n${compactSchedule}\n\n질문에만 간결하게 답변하세요. JSON을 생성하지 마세요.\n\n사용자 질문: ${trimmedText}`;
+    }
 
     try {
       const res = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: contextMsg, type: 'modify' }),
+        body: JSON.stringify({ message: contextMsg, type: msgType }),
       });
       const data = await res.json();
       const reply = data.response || data.message || '응답을 받지 못했습니다.';

@@ -7,7 +7,8 @@ import {
   Wallet,
   CheckCircle2,
   Clock,
-  MapPin
+  MapPin,
+  MoreVertical
 } from 'lucide-react';
 import {
   TRIP_STATUS,
@@ -18,7 +19,7 @@ import { sampleTrips } from '@/data/index';
 import { TripGrid } from '@/components/TripCards';
 import { NewTripForm } from '@/components/Forms';
 import { FullScreenChat } from '@/components/FullScreenChat';
-import { ScheduleEditor, loadSavedTrips, saveTrip, type ScheduleData } from '@/components/ScheduleEditor';
+import { ScheduleEditor, loadSavedTrips, saveTrip, deleteTrip, type ScheduleData } from '@/components/ScheduleEditor';
 import { ShareButton } from '@/components/ShareButton';
 import { ScheduleMap } from '@/components/ScheduleMap';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ import {
 } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
+import { useLocation } from 'react-router-dom';
 
 type ViewMode = 'list' | 'chat' | 'editor';
 
@@ -176,7 +178,9 @@ export default function Trips() {
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>();
   const [savedTrips, setSavedTrips] = useState<ScheduleData[]>([]);
   const [editingSchedule, setEditingSchedule] = useState<ScheduleData | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const { toast } = useToast();
+  const location = useLocation();
 
   // Load saved trips from localStorage
   const refreshSavedTrips = useCallback(() => {
@@ -184,6 +188,20 @@ export default function Trips() {
   }, []);
 
   useEffect(() => { refreshSavedTrips(); }, [refreshSavedTrips]);
+
+  // #5: Open schedule directly from Dashboard navigation state
+  useEffect(() => {
+    const state = location.state as { openScheduleId?: string } | null;
+    if (state?.openScheduleId) {
+      const trip = loadSavedTrips().find(t => t.id === state.openScheduleId);
+      if (trip) {
+        setEditingSchedule(trip);
+        setViewMode('editor');
+      }
+      // Clear state to avoid re-opening on re-render
+      window.history.replaceState({}, '');
+    }
+  }, [location.state]);
 
   // 필터링된 여행 목록 계산
   const filteredTrips = useMemo(() => {
@@ -420,7 +438,7 @@ export default function Trips() {
                 className="cursor-pointer"
                 onClick={() => handleOpenSavedTrip(trip)}
               >
-                <Card className="border shadow-sm hover:shadow-lg transition-all rounded-2xl overflow-hidden">
+                <Card className="border shadow-sm hover:shadow-lg transition-all rounded-2xl overflow-hidden relative">
                   <CardContent className="p-5 space-y-3">
                     <div className="flex items-start justify-between">
                       <div>
@@ -429,13 +447,46 @@ export default function Trips() {
                           <MapPin className="w-3.5 h-3.5" /> {trip.destination}
                         </p>
                       </div>
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
-                        trip.status === 'confirmed'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-primary/10 text-primary'
-                      }`}>
-                        {trip.status === 'confirmed' ? '예약 확정' : '설계 중'}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
+                          trip.status === 'confirmed'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-primary/10 text-primary'
+                        }`}>
+                          {trip.status === 'confirmed' ? '예약 확정' : '설계 중'}
+                        </span>
+                        <div className="relative" onClick={e => e.stopPropagation()}>
+                          <button
+                            className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            onClick={() => setOpenMenuId(prev => prev === trip.id ? null : trip.id)}
+                          >
+                            <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                          </button>
+                          {openMenuId === trip.id && (
+                            <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-50 overflow-hidden">
+                              <button
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                onClick={() => { setOpenMenuId(null); handleOpenSavedTrip(trip); }}
+                              >
+                                ✏️ 스케줄 편집
+                              </button>
+                              <button
+                                className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  if (confirm('이 여행을 삭제하시겠습니까?')) {
+                                    deleteTrip(trip.id);
+                                    refreshSavedTrips();
+                                    toast({ title: '삭제 완료', description: `${trip.title}이(가) 삭제되었습니다.` });
+                                  }
+                                }}
+                              >
+                                🗑️ 삭제
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {trip.period}</span>

@@ -35,15 +35,33 @@ function buildTeamShareUrl(s: ScheduleData) {
   return `${BASE_URL}/#/shared/${compressed}`;
 }
 
-const snsOptions = [
+const isMobileDevice = () =>
+  'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.innerWidth < 768;
+
+interface SnsOption {
+  key: string;
+  label: string;
+  icon: typeof MessageCircle;
+  color: string;
+  bg: string;
+  action: (text: string, url: string, copyFn: (t: string, k: string) => void) => void;
+}
+
+const allSnsOptions: SnsOption[] = [
   {
     key: 'kakao',
     label: '카카오톡',
     icon: MessageCircle,
     color: 'text-yellow-600',
     bg: 'hover:bg-yellow-50 dark:hover:bg-yellow-900/20',
-    getUrl: (text: string, url: string) =>
-      `https://sharer.kakao.com/talk/friends/picker/link?url=${encodeURIComponent(url)}`,
+    action: (text, url, copyFn) => {
+      if (isMobileDevice()) {
+        window.location.href = `kakaotalk://msg/text/${encodeURIComponent(text + '\n' + url)}`;
+      } else {
+        copyFn(url, 'kakao-copy');
+        alert('링크가 클립보드에 복사되었습니다.\n카카오톡에 붙여넣기 해주세요.');
+      }
+    },
   },
   {
     key: 'line',
@@ -51,8 +69,30 @@ const snsOptions = [
     icon: MessageCircle,
     color: 'text-green-600',
     bg: 'hover:bg-green-50 dark:hover:bg-green-900/20',
-    getUrl: (_text: string, url: string) =>
-      `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}`,
+    action: (_, url) => {
+      window.open(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}`, '_blank', 'width=600,height=400');
+    },
+  },
+  {
+    key: 'whatsapp',
+    label: 'WhatsApp',
+    icon: MessageCircle,
+    color: 'text-green-500',
+    bg: 'hover:bg-green-50 dark:hover:bg-green-900/20',
+    action: (text, url) => {
+      window.open(`https://wa.me/?text=${encodeURIComponent(text + '\n' + url)}`, '_blank', 'width=600,height=400');
+    },
+  },
+  {
+    key: 'wechat',
+    label: 'WeChat',
+    icon: MessageCircle,
+    color: 'text-green-700',
+    bg: 'hover:bg-green-50 dark:hover:bg-green-900/20',
+    action: (_, url, copyFn) => {
+      copyFn(url, 'wechat-copy');
+      alert('链接已复制到剪贴板，请在微信中粘贴分享。');
+    },
   },
   {
     key: 'twitter',
@@ -60,8 +100,9 @@ const snsOptions = [
     icon: Twitter,
     color: 'text-sky-500',
     bg: 'hover:bg-sky-50 dark:hover:bg-sky-900/20',
-    getUrl: (text: string, url: string) =>
-      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text + '\n' + url)}`,
+    action: (text, url) => {
+      window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text + '\n' + url)}`, '_blank', 'width=600,height=400');
+    },
   },
   {
     key: 'facebook',
@@ -69,10 +110,35 @@ const snsOptions = [
     icon: Facebook,
     color: 'text-blue-600',
     bg: 'hover:bg-blue-50 dark:hover:bg-blue-900/20',
-    getUrl: (_text: string, url: string) =>
-      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+    action: (_, url) => {
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'width=600,height=400');
+    },
   },
-] as const;
+];
+
+function getSortedSnsOptions(): SnsOption[] {
+  const lang = (navigator.language || 'en').toLowerCase();
+  const priorityMap: Record<string, string[]> = {
+    ko: ['kakao', 'line', 'twitter', 'facebook', 'whatsapp'],
+    ja: ['line', 'twitter', 'facebook', 'whatsapp'],
+    zh: ['wechat', 'line', 'facebook', 'twitter', 'whatsapp'],
+    th: ['line', 'facebook', 'twitter', 'whatsapp'],
+    en: ['whatsapp', 'twitter', 'facebook', 'line'],
+  };
+  const langKey = Object.keys(priorityMap).find(k => lang.startsWith(k)) || 'en';
+  const priority = priorityMap[langKey];
+  const sorted = [...allSnsOptions].sort((a, b) => {
+    const ai = priority.indexOf(a.key);
+    const bi = priority.indexOf(b.key);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+  // Filter out wechat for non-zh, kakao for non-ko
+  return sorted.filter(opt => {
+    if (opt.key === 'wechat' && !lang.startsWith('zh')) return false;
+    if (opt.key === 'kakao' && !lang.startsWith('ko')) return false;
+    return true;
+  });
+}
 
 export function ShareButton({ schedule, compact }: ShareButtonProps) {
   const [open, setOpen] = useState(false);
@@ -93,12 +159,10 @@ export function ShareButton({ schedule, compact }: ShareButtonProps) {
   const shareUrl = buildShareUrl(schedule);
   const fullText = `${title}\n${desc}`;
 
-  const isMobile = () =>
-    'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.innerWidth < 768;
+  const snsOptions = getSortedSnsOptions();
 
   const handleShare = async () => {
-    // Only use Web Share API on mobile touch devices (Edge desktop has broken navigator.share)
-    if (isMobile() && navigator.share) {
+    if (isMobileDevice() && navigator.share) {
       try {
         await navigator.share({ title, text: desc, url: shareUrl });
         return;
@@ -144,7 +208,7 @@ export function ShareButton({ schedule, compact }: ShareButtonProps) {
                 key={opt.key}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${opt.bg}`}
                 onClick={() => {
-                  window.open(opt.getUrl(fullText, shareUrl), '_blank', 'width=600,height=400');
+                  opt.action(fullText, shareUrl, copyToClipboard);
                   setOpen(false);
                 }}
               >

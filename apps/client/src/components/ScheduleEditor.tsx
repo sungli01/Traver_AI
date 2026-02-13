@@ -237,7 +237,15 @@ function ActivityRow({
         <div className="flex-1 min-w-0 pb-2">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <h4 className="font-bold text-sm text-gray-900 dark:text-gray-100">{activity.title}</h4>
+              <h4
+              className={`font-bold text-sm ${activity.lat && activity.lng ? 'text-blue-600 underline decoration-blue-300 cursor-pointer hover:text-blue-800' : 'text-gray-900 dark:text-gray-100'}`}
+              onClick={(e) => {
+                if (activity.lat && activity.lng) {
+                  e.stopPropagation();
+                  onActivitySelect?.(activity.id);
+                }
+              }}
+            >{activity.title}</h4>
               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                 <span className={`text-[11px] font-medium ${cfg.color}`}>{cfg.label}</span>
                 {activity.description && (
@@ -392,7 +400,7 @@ function AddActivityForm({ onAdd, onCancel }: { onAdd: (a: EditableActivity) => 
 
 /* ── Day Accordion ── */
 function DayAccordion({
-  day, isExpanded, onToggle, onUpdate, onDelete, destination, prevDayAccommodation, onActivitySelect, onNavigationRequest,
+  day, isExpanded, onToggle, onUpdate, onDelete, destination, prevDayAccommodation, onActivitySelect, onNavigationRequest, onAccommodationClick,
 }: {
   day: EditableDay;
   isExpanded: boolean;
@@ -403,6 +411,7 @@ function DayAccordion({
   prevDayAccommodation?: EditableAccommodation & { lat?: number; lng?: number };
   onActivitySelect?: (id: string) => void;
   onNavigationRequest?: (from: { lat: number; lng: number; title: string }, to: { lat: number; lng: number; title: string }) => void;
+  onAccommodationClick?: (accommodation: EditableAccommodation) => void;
 }) {
   const [addingActivity, setAddingActivity] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -529,7 +538,14 @@ function DayAccordion({
                 <div className="mt-3 flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 border border-indigo-200/50">
                   <Hotel className="w-5 h-5 text-indigo-500" />
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-indigo-700 dark:text-indigo-300">🏨 {day.accommodation.name}</p>
+                    <p
+                      className={`text-sm font-bold ${day.accommodation.lat && day.accommodation.lng ? 'text-blue-600 underline decoration-blue-300 cursor-pointer hover:text-blue-800' : 'text-indigo-700 dark:text-indigo-300'}`}
+                      onClick={() => {
+                        if (day.accommodation?.lat && day.accommodation?.lng) {
+                          onAccommodationClick?.(day.accommodation);
+                        }
+                      }}
+                    >🏨 {day.accommodation.name}</p>
                     <p className="text-xs text-indigo-500 font-semibold">{day.accommodation.cost}</p>
                   </div>
                 </div>
@@ -579,6 +595,7 @@ export function ScheduleEditor({
   onDataChange,
   onActivitySelect,
   onNavigationRequest,
+  onAccommodationClick,
   mapToggle,
 }: {
   schedule: ScheduleData;
@@ -588,6 +605,7 @@ export function ScheduleEditor({
   onDataChange?: (data: ScheduleData) => void;
   onActivitySelect?: (activityId: string) => void;
   onNavigationRequest?: (from: { lat: number; lng: number; title: string }, to: { lat: number; lng: number; title: string }) => void;
+  onAccommodationClick?: (accommodation: EditableAccommodation) => void;
   mapToggle?: React.ReactNode;
 }) {
   const [data, setData] = useState<ScheduleData>(schedule);
@@ -754,6 +772,7 @@ export function ScheduleEditor({
             prevDayAccommodation={idx > 0 ? data.days[idx - 1].accommodation : undefined}
             onActivitySelect={onActivitySelect}
             onNavigationRequest={onNavigationRequest}
+            onAccommodationClick={onAccommodationClick}
           />
         ))}
       </div>
