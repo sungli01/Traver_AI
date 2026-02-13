@@ -598,30 +598,24 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
   // Fullscreen place map mode
   if (placePreview) {
     return (
-      <div className="flex flex-col h-full relative">
-        {/* Map header with close — high z-index to stay above Leaflet */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background shadow-md shrink-0" style={{ zIndex: 1000, position: 'relative' }}>
-          <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-primary" />
-            <span className="text-sm font-bold text-foreground">📍 {placePreview.title}</span>
-          </div>
-          <Button variant="default" size="sm" className="rounded-xl gap-1.5 text-xs shadow-lg" onClick={() => { setPlacePreview(null); setMobileTab('chat'); }}>
-            <X className="w-3.5 h-3.5" /> 닫기
-          </Button>
+      <div className="relative h-full w-full">
+        {/* Map fills entire area */}
+        <div ref={placeMapRef} style={{ height: '100%', width: '100%' }} />
+        {/* Place name label — bottom center */}
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-900 shadow-xl rounded-2xl px-5 py-2.5 flex items-center gap-2 border border-gray-200 dark:border-gray-700" style={{ zIndex: 1000 }}>
+          <MapPin className="w-4 h-4 text-primary shrink-0" />
+          <span className="text-sm font-bold text-foreground">{placePreview.title}</span>
         </div>
-        {/* Floating close button on map — always visible */}
-        <div className="absolute top-16 right-4" style={{ zIndex: 1000 }}>
+        {/* Close button — bottom center, below label */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2" style={{ zIndex: 1000 }}>
           <Button
             variant="default"
-            size="sm"
-            className="rounded-full shadow-2xl gap-1.5 text-xs h-10 px-4"
+            size="lg"
+            className="rounded-full shadow-2xl gap-2 h-12 px-8 text-sm font-bold"
             onClick={() => { setPlacePreview(null); setMobileTab('chat'); }}
           >
             <X className="w-4 h-4" /> 지도 닫기
           </Button>
-        </div>
-        <div className="flex-1 min-h-0">
-          <div ref={placeMapRef} style={{ height: '100%', width: '100%' }} />
         </div>
       </div>
     );
