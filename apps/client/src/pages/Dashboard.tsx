@@ -22,6 +22,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Link, useNavigate } from 'react-router-dom';
 import { loadSavedTrips, deleteTrip, type ScheduleData } from '@/components/ScheduleEditor';
+import { PurchaseApproval } from '@/components/PurchaseApproval';
 import { useToast } from '@/components/ui/use-toast';
 
 const fadeInUp = {
@@ -157,6 +158,11 @@ export default function Dashboard() {
           </Card>
         </motion.div>
       </motion.div>
+
+      {/* Pending Purchase Approvals */}
+      <motion.section initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="space-y-4">
+        <PurchaseApproval />
+      </motion.section>
 
       {/* Confirmed trips — 진행 및 예정된 여행 */}
       {savedTrips.filter(t => t.status === 'confirmed').length > 0 && (

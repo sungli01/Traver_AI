@@ -9,6 +9,9 @@ const collector = require('./collector');
 const scheduler = require('./scheduler');
 require('dotenv').config();
 
+const priceTracker = require('./price-tracker');
+const purchaseApproval = require('./purchase-approval');
+
 const JWT_SECRET = process.env.JWT_SECRET || 'travelagent-ai-secret-key-2026';
 
 const app = express();
@@ -218,6 +221,80 @@ app.get('/api/admin/sessions', (req, res) => {
   res.json({ activeSessions: sessionGoals.size });
 });
 
+// ─── Price Tracking Endpoints ───
+app.post('/api/price-track/start', async (req, res) => {
+  try {
+    const { tripId, tripData } = req.body;
+    if (!tripId || !tripData) return res.status(400).json({ error: 'tripId and tripData required' });
+    const results = await priceTracker.trackPrices(tripId, tripData);
+    res.json({ success: true, items: results });
+  } catch (err) {
+    console.error('[API] price-track start error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/price-track/:tripId', async (req, res) => {
+  try {
+    const prices = await priceTracker.getLatestPrices(req.params.tripId);
+    res.json({ tripId: req.params.tripId, prices });
+  } catch (err) {
+    console.error('[API] price-track status error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/price-track/:tripId/history', async (req, res) => {
+  try {
+    const history = await priceTracker.getPriceHistory(req.params.tripId);
+    res.json({ tripId: req.params.tripId, history });
+  } catch (err) {
+    console.error('[API] price-track history error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Purchase Approval Endpoints ───
+app.post('/api/purchase/approve/:requestId', async (req, res) => {
+  try {
+    const result = await purchaseApproval.approvePurchase(parseInt(req.params.requestId));
+    res.json({ success: true, request: result });
+  } catch (err) {
+    console.error('[API] purchase approve error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/purchase/reject/:requestId', async (req, res) => {
+  try {
+    const result = await purchaseApproval.rejectPurchase(parseInt(req.params.requestId));
+    res.json({ success: true, request: result });
+  } catch (err) {
+    console.error('[API] purchase reject error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/purchase/pending', async (req, res) => {
+  try {
+    const requests = await purchaseApproval.getPendingRequests();
+    res.json({ requests });
+  } catch (err) {
+    console.error('[API] purchase pending error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/purchase/history', async (req, res) => {
+  try {
+    const history = await purchaseApproval.getPurchaseHistory();
+    res.json({ history });
+  } catch (err) {
+    console.error('[API] purchase history error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 4000;
 
 // Create users table & test DB connection on startup
@@ -236,8 +313,41 @@ async function initDB() {
         )
       `);
       console.log('[DB] users table ready');
+
+      // Price tracking tables
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS price_history (
+          id SERIAL PRIMARY KEY,
+          trip_id TEXT NOT NULL,
+          item_type TEXT NOT NULL,
+          item_name TEXT NOT NULL,
+          price INTEGER NOT NULL,
+          currency TEXT DEFAULT 'KRW',
+          source TEXT DEFAULT 'simulation',
+          checked_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS purchase_requests (
+          id SERIAL PRIMARY KEY,
+          trip_id TEXT NOT NULL,
+          item_type TEXT NOT NULL,
+          item_name TEXT NOT NULL,
+          destination TEXT,
+          travel_date TEXT,
+          current_price INTEGER NOT NULL,
+          predicted_low INTEGER,
+          recommendation TEXT,
+          status TEXT DEFAULT 'pending_approval',
+          user_response TEXT,
+          created_at TIMESTAMP DEFAULT NOW(),
+          expires_at TIMESTAMP,
+          purchased_at TIMESTAMP
+        )
+      `);
+      console.log('[DB] price_history & purchase_requests tables ready');
     } catch (err) {
-      console.error('[DB] users table creation error:', err.message);
+      console.error('[DB] table creation error:', err.message);
     }
   } else {
     console.warn('[DB] Knowledge DB not available — running without DB');

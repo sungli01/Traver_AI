@@ -71,6 +71,15 @@ async function checkExpiredData() {
   }
 }
 
+async function checkTrackedPrices() {
+  try {
+    const priceTracker = require('./price-tracker');
+    await priceTracker.checkAllTrackedPrices();
+  } catch (err) {
+    console.error('[Scheduler] Price check failed:', err.message);
+  }
+}
+
 function start() {
   console.log('[Scheduler] Starting...');
 
@@ -84,7 +93,13 @@ function start() {
     setInterval(checkExpiredData, ONE_DAY);
   }, 60 * 1000);
 
-  console.log('[Scheduler] Scheduled: exchange rates (6h), expiry check (24h)');
+  // Price tracking: 2 minutes after start + every 6 hours
+  setTimeout(() => {
+    checkTrackedPrices();
+    setInterval(checkTrackedPrices, SIX_HOURS);
+  }, 2 * 60 * 1000);
+
+  console.log('[Scheduler] Scheduled: exchange rates (6h), expiry check (24h), price tracking (6h)');
 }
 
-module.exports = { start, refreshExchangeRates, checkExpiredData };
+module.exports = { start, refreshExchangeRates, checkExpiredData, checkTrackedPrices };

@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { ActivityChatPanel } from '@/components/ActivityChatPanel';
 import { ShareButton } from '@/components/ShareButton';
+import { PriceTracker } from '@/components/PriceTracker';
+import { PurchaseApproval } from '@/components/PurchaseApproval';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -781,6 +783,14 @@ export function ScheduleEditor({
       <Button variant="outline" className="w-full rounded-2xl h-12 gap-2 border-dashed text-muted-foreground hover:text-primary" onClick={addDay}>
         <Plus className="w-4 h-4" /> Day {data.days.length + 1} 추가
       </Button>
+
+      {/* Price Tracking & Purchase Approval (confirmed trips only) */}
+      {data.status === 'confirmed' && (
+        <div className="space-y-4">
+          <PriceTracker tripId={data.id} tripData={data} />
+          <PurchaseApproval tripId={data.id} />
+        </div>
+      )}
 
       {/* Payment request button */}
       <Button

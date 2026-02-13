@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { IMAGES } from '@/assets/images';
 import { TravelChatWindow } from '@/components/TravelChatWindow';
+import { NotificationBell } from '@/components/NotificationBell';
 import { useAuthStore } from '@/stores/authStore';
 
 interface LayoutProps {
@@ -310,10 +311,7 @@ export function Layout({ children }: LayoutProps) {
             </div>
 
             <div className="flex items-center gap-2 md:gap-3">
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5 text-muted-foreground" />
-                <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-accent border-2 border-background"></span>
-              </Button>
+              <NotificationBell />
               <div className="hidden sm:flex flex-col items-end text-right">
                 <span className="text-xs font-medium text-accent">AI 에이전트 활성 중</span>
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider">System Online</span>
