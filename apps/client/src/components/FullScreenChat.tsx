@@ -145,15 +145,38 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
         }
       }
 
+      // Strip JSON from display text even if itinerary parsing fails
+      const stripJson = (text: string) => {
+        // Remove ```json...``` blocks
+        let cleaned = text.replace(/```(?:json)?\s*[\s\S]*?(?:```|$)/g, '').trim();
+        // Remove raw JSON objects (starts with { and has "days" or "type")
+        const braceStart = cleaned.indexOf('{');
+        if (braceStart !== -1 && (cleaned.includes('"days"') || cleaned.includes('"itinerary"') || cleaned.includes('"type"'))) {
+          cleaned = cleaned.substring(0, braceStart).trim();
+        }
+        return cleaned;
+      };
+
       const newMessages: ChatMessage[] = [];
-      if (summaryText) {
-        newMessages.push({ role: 'assistant', content: summaryText });
+      if (itinerary) {
+        // Itinerary parsed successfully
+        if (summaryText) {
+          newMessages.push({ role: 'assistant', content: summaryText });
+        }
+        newMessages.push({ role: 'assistant', content: '', itinerary });
+      } else {
+        // Itinerary parsing failed — still strip JSON from display
+        const displayText = stripJson(reply);
+        // Try one more time to parse for preview
+        const retryItinerary = tryParseItinerary(reply);
+        if (retryItinerary) {
+          setLatestItinerary(retryItinerary);
+          if (displayText) newMessages.push({ role: 'assistant', content: displayText });
+          newMessages.push({ role: 'assistant', content: '', itinerary: retryItinerary });
+        } else {
+          newMessages.push({ role: 'assistant', content: displayText || '일정을 생성했습니다. 우측 프리뷰를 확인하세요.' });
+        }
       }
-      newMessages.push({
-        role: 'assistant',
-        content: itinerary ? '' : reply,
-        itinerary: itinerary || undefined,
-      });
       setMessages(prev => [...prev, ...newMessages]);
     } catch {
       clearStepTimers();
@@ -253,10 +276,16 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
         
         // Extract text before JSON as change summary
         const jsonStart = reply.indexOf('{');
-        const summaryText = jsonStart > 0 ? reply.slice(0, jsonStart).trim() : '일정이 수정되었습니다.';
+        let summaryText = jsonStart > 0 ? reply.slice(0, jsonStart).replace(/```(?:json)?\s*/g, '').trim() : '';
         setEditChatMessages(prev => [...prev, { role: 'assistant', content: summaryText || '✅ 일정이 수정되었습니다. 좌측에서 변경 내용을 확인하세요.' }]);
       } else {
-        setEditChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+        // Strip any JSON from display even if parsing failed
+        let displayReply = reply.replace(/```(?:json)?\s*[\s\S]*?(?:```|$)/g, '').trim();
+        const braceIdx = displayReply.indexOf('{');
+        if (braceIdx !== -1 && (displayReply.includes('"days"') || displayReply.includes('"type"'))) {
+          displayReply = displayReply.substring(0, braceIdx).trim();
+        }
+        setEditChatMessages(prev => [...prev, { role: 'assistant', content: displayReply || reply.substring(0, 200) }]);
       }
     } catch (e) {
       setEditChatMessages(prev => [...prev, { role: 'assistant', content: '오류가 발생했습니다. 다시 시도해주세요.' }]);
