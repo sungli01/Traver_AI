@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
-import { Send, Loader2, CheckCircle2, ArrowLeft, MessageSquare, Map as MapIcon, Pencil } from 'lucide-react';
+import { Send, Loader2, CheckCircle2, ArrowLeft, MessageSquare, Map as MapIcon, Pencil, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useSecurityStore } from '@/stores/securityStore';
@@ -37,6 +37,8 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
   const [currentStep, setCurrentStep] = useState(-1);
   const [mobileTab, setMobileTab] = useState<'chat' | 'preview'>('chat');
   const [latestItinerary, setLatestItinerary] = useState<Itinerary | null>(null);
+  const [sessionGoals, setSessionGoals] = useState<string[]>([]);
+  const sessionIdRef = useRef(`session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
   const [scheduleMode, setScheduleMode] = useState(false);
   const [scheduleData, setScheduleData] = useState<ScheduleData | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -125,10 +127,11 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
       const response = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageToSend, context: contextMsgs, type: msgType }),
+        body: JSON.stringify({ message: messageToSend, context: contextMsgs, type: msgType, sessionId: sessionIdRef.current, goals: sessionGoals }),
       });
       const data = await response.json();
       const reply = data.reply || data.message || '응답을 받지 못했습니다.';
+      if (data.goals && Array.isArray(data.goals)) setSessionGoals(data.goals);
 
       clearStepTimers();
       setCurrentStep(STEPS.length - 1);
@@ -218,6 +221,39 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
     setScheduleMode(true);
     onScheduleSaved?.();
   };
+
+  // Place click map preview
+  const [placePreview, setPlacePreview] = useState<{ lat: number; lng: number; title: string } | null>(null);
+  const placeMapRef = useRef<HTMLDivElement>(null);
+
+  const handlePlaceClick = useCallback((activity: { lat?: number; lng?: number; title: string }) => {
+    if (activity.lat && activity.lng) {
+      setPlacePreview({ lat: activity.lat, lng: activity.lng, title: activity.title });
+      setMobileTab('preview');
+    }
+  }, []);
+
+  // Render place preview map with Leaflet
+  useEffect(() => {
+    if (!placePreview || !placeMapRef.current) return;
+    const L = (window as any).L;
+    if (!L) {
+      // Dynamically import leaflet
+      import('leaflet').then(leaflet => {
+        const map = leaflet.default.map(placeMapRef.current!, { zoomControl: true }).setView([placePreview.lat, placePreview.lng], 15);
+        leaflet.default.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+        leaflet.default.marker([placePreview.lat, placePreview.lng]).addTo(map).bindPopup(`<strong>${placePreview.title}</strong>`).openPopup();
+        setTimeout(() => map.invalidateSize(), 100);
+        return () => { map.remove(); };
+      });
+    } else {
+      const map = L.map(placeMapRef.current, { zoomControl: true }).setView([placePreview.lat, placePreview.lng], 15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+      L.marker([placePreview.lat, placePreview.lng]).addTo(map).bindPopup(`<strong>${placePreview.title}</strong>`).openPopup();
+      setTimeout(() => map.invalidateSize(), 100);
+      return () => { map.remove(); };
+    }
+  }, [placePreview]);
 
   const [editChatOpen, setEditChatOpen] = useState(false);
   const [editChatMessages, setEditChatMessages] = useState<ChatMessage[]>([]);
@@ -457,7 +493,7 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {msg.itinerary ? (
               <div className="w-full max-w-full lg:hidden">
-                <ItineraryCard data={msg.itinerary} />
+                <ItineraryCard data={msg.itinerary} onPlaceClick={handlePlaceClick} />
               </div>
             ) : msg.itinerary ? null : (
               <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
@@ -514,9 +550,19 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
 
   const previewPanel = (
     <div className="flex flex-col h-full overflow-y-auto p-2 lg:p-3">
+      {/* Place preview map */}
+      {placePreview && (
+        <div className="mb-3 rounded-xl overflow-hidden border border-blue-200 shadow-sm">
+          <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-950 px-3 py-2">
+            <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">📍 {placePreview.title}</span>
+            <button onClick={() => setPlacePreview(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>
+          </div>
+          <div ref={placeMapRef} style={{ height: '250px', width: '100%' }} />
+        </div>
+      )}
       {latestItinerary ? (
         <div className="space-y-3">
-          <ItineraryCard data={latestItinerary} />
+          <ItineraryCard data={latestItinerary} onPlaceClick={handlePlaceClick} />
           <Button
             className="w-full rounded-2xl h-12 gap-2 text-base font-semibold shadow-lg"
             onClick={handleMoveToSchedule}

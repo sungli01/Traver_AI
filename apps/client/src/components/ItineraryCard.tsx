@@ -90,7 +90,7 @@ function Connector() {
 }
 
 /* ── Place card (RAMZI style) ── */
-function PlaceCard({ activity, index, destination, isLast, prevActivity }: { activity: Activity; index: number; destination: string; isLast: boolean; prevActivity?: Activity }) {
+function PlaceCard({ activity, index, destination, isLast, prevActivity, onPlaceClick }: { activity: Activity; index: number; destination: string; isLast: boolean; prevActivity?: Activity; onPlaceClick?: (activity: Activity) => void }) {
   const cfg = getConfig(activity.category);
 
   return (
@@ -106,7 +106,10 @@ function PlaceCard({ activity, index, destination, isLast, prevActivity }: { act
         <div className="flex-1 min-w-0 pb-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <h4 className="font-bold text-sm leading-tight text-gray-900 dark:text-gray-100">{activity.title}</h4>
+              <h4
+                className={`font-bold text-sm leading-tight ${activity.lat && activity.lng ? 'text-blue-700 dark:text-blue-400 underline decoration-dotted cursor-pointer hover:text-blue-500 transition-colors' : 'text-gray-900 dark:text-gray-100'}`}
+                onClick={() => { if (activity.lat && activity.lng && onPlaceClick) onPlaceClick(activity); }}
+              >{activity.title}</h4>
               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                 <span className={`text-[11px] font-medium ${cfg.color}`}>{cfg.label}</span>
                 {activity.description && (
@@ -150,17 +153,19 @@ function PlaceCard({ activity, index, destination, isLast, prevActivity }: { act
                 {activity.linkLabel || '자세히 보기 →'}
               </a>
             )}
-            <a
-              href={prevActivity?.lat && prevActivity?.lng && activity.lat && activity.lng
-                ? `https://www.google.com/maps/dir/${prevActivity.lat},${prevActivity.lng}/${activity.lat},${activity.lng}`
-                : mapsUrl(activity.title, destination)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-medium"
-            >
-              <Navigation className="w-3 h-3" />
-              🗺️ 길찾기
-            </a>
+            {activity.category !== 'transport' && (
+              <a
+                href={prevActivity?.lat && prevActivity?.lng && activity.lat && activity.lng
+                  ? `https://www.google.com/maps/dir/${prevActivity.lat},${prevActivity.lng}/${activity.lat},${activity.lng}`
+                  : mapsUrl(activity.title, destination)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-medium"
+              >
+                <Navigation className="w-3 h-3" />
+                🗺️ 길찾기
+              </a>
+            )}
           </div>
         </div>
       </div>
@@ -172,7 +177,7 @@ function PlaceCard({ activity, index, destination, isLast, prevActivity }: { act
 }
 
 /* ── Accommodation card ── */
-function AccommodationCard({ accommodation }: { accommodation: Accommodation }) {
+function AccommodationCard({ accommodation, onPlaceClick }: { accommodation: Accommodation; onPlaceClick?: (activity: Activity) => void }) {
   return (
     <div className="mt-3 mx-0">
       <div className="border-t border-dashed border-gray-200 dark:border-gray-700 my-2" />
@@ -181,7 +186,10 @@ function AccommodationCard({ accommodation }: { accommodation: Accommodation }) 
           <Hotel className="w-4 h-4" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-indigo-700 dark:text-indigo-300 truncate">🏨 {accommodation.name}</p>
+          <p
+            className={`text-sm font-bold truncate ${accommodation.lat && accommodation.lng ? 'text-indigo-600 dark:text-indigo-300 underline decoration-dotted cursor-pointer hover:text-indigo-400 transition-colors' : 'text-indigo-700 dark:text-indigo-300'}`}
+            onClick={() => { if (accommodation.lat && accommodation.lng && onPlaceClick) onPlaceClick({ time: '', title: accommodation.name, description: '', category: 'rest', cost: accommodation.cost, lat: accommodation.lat, lng: accommodation.lng }); }}
+          >🏨 {accommodation.name}</p>
           <p className="text-xs text-indigo-500 dark:text-indigo-400 font-semibold">{accommodation.cost}</p>
         </div>
         {accommodation.link && (
@@ -201,7 +209,7 @@ function AccommodationCard({ accommodation }: { accommodation: Accommodation }) 
 }
 
 /* ── Day section ── */
-function DaySection({ dayData, destination, isExpanded, onToggle, prevDayAccommodation }: { dayData: Day; destination: string; isExpanded: boolean; onToggle: () => void; prevDayAccommodation?: Accommodation }) {
+function DaySection({ dayData, destination, isExpanded, onToggle, prevDayAccommodation, onPlaceClick }: { dayData: Day; destination: string; isExpanded: boolean; onToggle: () => void; prevDayAccommodation?: Accommodation; onPlaceClick?: (activity: Activity) => void }) {
   return (
     <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
       {/* Day header bar */}
@@ -259,13 +267,14 @@ function DaySection({ dayData, destination, isExpanded, onToggle, prevDayAccommo
                     destination={destination}
                     isLast={i === dayData.activities.length - 1}
                     prevActivity={prevAct}
+                    onPlaceClick={onPlaceClick}
                   />
                 );
               })}
 
               {/* Accommodation */}
               {dayData.accommodation && (
-                <AccommodationCard accommodation={dayData.accommodation} />
+                <AccommodationCard accommodation={dayData.accommodation} onPlaceClick={onPlaceClick} />
               )}
 
               {/* Bottom action buttons */}
@@ -333,7 +342,7 @@ function CostSummary({ data }: { data: Itinerary }) {
   );
 }
 
-export function ItineraryCard({ data, onMoveToSchedule }: { data: Itinerary; onMoveToSchedule?: (data: Itinerary) => void }) {
+export function ItineraryCard({ data, onMoveToSchedule, onPlaceClick }: { data: Itinerary; onMoveToSchedule?: (data: Itinerary) => void; onPlaceClick?: (activity: Activity) => void }) {
   const [viewMode, setViewMode] = useState<'summary' | 'full'>('summary');
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set([1]));
   const [showMap, setShowMap] = useState(false);
@@ -468,6 +477,7 @@ export function ItineraryCard({ data, onMoveToSchedule }: { data: Itinerary; onM
             isExpanded={viewMode === 'full' || expandedDays.has(day.day)}
             onToggle={() => toggleDay(day.day)}
             prevDayAccommodation={idx > 0 ? data.days[idx - 1].accommodation : undefined}
+            onPlaceClick={onPlaceClick}
           />
         ))}
       </div>

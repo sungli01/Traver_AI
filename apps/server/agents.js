@@ -26,10 +26,16 @@ async function processAgentRequest(message, context = [], options = {}) {
     const maxTokensMap = { chat: 1024, generate: 8192, modify: 4096 };
     const maxTokens = maxTokensMap[msgType] || 8192;
 
+    // Build goals section for system prompt
+    const goals = options.goals || [];
+    const goalsSection = goals.length > 0
+      ? `\n\n## 현재 여행 목표 (절대 무시하지 마라 — 모든 일정에 반드시 반영할 것)\n${goals.map(g => `- ${g}`).join('\n')}\n`
+      : '';
+
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: maxTokens,
-      system: `당신은 TravelAgent AI의 전문 여행 컨시어지입니다.
+      system: `당신은 TravelAgent AI의 전문 여행 컨시어지입니다.${goalsSection}
 
 ## 핵심 규칙
 사용자가 여행 계획을 요청하면, 반드시 아래 JSON 형식으로만 응답하세요. JSON 외의 텍스트를 포함하지 마세요.

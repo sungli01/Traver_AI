@@ -491,7 +491,7 @@ function DayAccordion({
                 } else if (prevDayAccommodation?.lat && prevDayAccommodation?.lng) {
                   prev = prevDayAccommodation;
                 }
-                const canNavigate = prev?.lat && prev?.lng && act.lat && act.lng;
+                const canNavigate = prev?.lat && prev?.lng && act.lat && act.lng && act.category !== 'transport';
                 const prevTitle = i > 0
                   ? day.activities[i - 1].title
                   : (prevDayAccommodation ? '숙소' : '');

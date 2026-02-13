@@ -96,11 +96,16 @@ export function ScheduleMap({ scheduleData, activeDay, className = '', selectedA
       const isActive = activeDay === day.day;
       const isInactive = activeDay != null && activeDay !== day.day;
       const coords: L.LatLngExpression[] = [];
+      const coordActivities: typeof day.activities = [];
 
       day.activities.forEach((act, idx) => {
         if (!act.lat || !act.lng) return;
         const latlng: L.LatLngExpression = [act.lat, act.lng];
-        coords.push(latlng);
+        // Only add non-transport activities to polyline coords
+        if (act.category !== 'transport') {
+          coords.push(latlng);
+          coordActivities.push(act);
+        }
         bounds.extend(latlng);
         hasMarkers = true;
 
@@ -148,11 +153,11 @@ export function ScheduleMap({ scheduleData, activeDay, className = '', selectedA
       });
 
       if (coords.length > 1) {
-        // Add clickable route segments
+        // Add clickable route segments (transport excluded)
         for (let i = 1; i < coords.length; i++) {
           const segCoords = [coords[i - 1], coords[i]] as L.LatLngExpression[];
-          const fromAct = day.activities.filter(a => a.lat && a.lng)[i - 1];
-          const toAct = day.activities.filter(a => a.lat && a.lng)[i];
+          const fromAct = coordActivities[i - 1];
+          const toAct = coordActivities[i];
           L.polyline(segCoords, {
             color,
             weight: isActive ? 5 : 3,
