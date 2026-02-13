@@ -14,6 +14,14 @@ const purchaseApproval = require('./purchase-approval');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'travelagent-ai-secret-key-2026';
 
+// OAuth config
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const KAKAO_CLIENT_ID = process.env.KAKAO_CLIENT_ID;
+const KAKAO_CLIENT_SECRET = process.env.KAKAO_CLIENT_SECRET;
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
 const app = express();
 const corsOptions = {
   origin: true,
@@ -185,6 +193,7 @@ app.post('/api/auth/login', async (req, res) => {
     const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
     if (result.rows.length === 0) return res.status(401).json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' });
     const user = result.rows[0];
+    if (!user.password_hash) return res.status(401).json({ error: '소셜 로그인으로 가입된 계정입니다' });
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' });
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
@@ -205,6 +214,139 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
     res.status(500).json({ error: '서버 오류' });
   }
 });
+
+// ─── OAuth Config (tells frontend which providers are available) ───
+app.get('/api/auth/oauth-config', (req, res) => {
+  res.json({
+    google: !!GOOGLE_CLIENT_ID,
+    kakao: !!KAKAO_CLIENT_ID,
+  });
+});
+
+// ─── Google OAuth ───
+app.get('/api/auth/google', (req, res) => {
+  if (!GOOGLE_CLIENT_ID) return res.status(501).json({ error: 'Google OAuth not configured' });
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: `${BACKEND_URL}/api/auth/google/callback`,
+    response_type: 'code',
+    scope: 'openid email profile',
+    access_type: 'offline',
+    prompt: 'consent',
+  });
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+});
+
+app.get('/api/auth/google/callback', async (req, res) => {
+  try {
+    const { code } = req.query;
+    if (!code) return res.redirect(`${FRONTEND_URL}/#/login?error=no_code`);
+
+    // Exchange code for tokens
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: `${BACKEND_URL}/api/auth/google/callback`,
+        grant_type: 'authorization_code',
+      }),
+    });
+    const tokens = await tokenRes.json();
+    if (!tokens.access_token) return res.redirect(`${FRONTEND_URL}/#/login?error=token_failed`);
+
+    // Get user info
+    const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+    const profile = await userRes.json();
+
+    // Find or create user
+    const { token } = await findOrCreateOAuthUser('google', profile.id, profile.email, profile.name);
+    res.redirect(`${FRONTEND_URL}/#/oauth-callback?token=${token}`);
+  } catch (err) {
+    console.error('[OAuth] Google callback error:', err.message);
+    res.redirect(`${FRONTEND_URL}/#/login?error=oauth_failed`);
+  }
+});
+
+// ─── 카카오 OAuth ───
+app.get('/api/auth/kakao', (req, res) => {
+  if (!KAKAO_CLIENT_ID) return res.status(501).json({ error: 'Kakao OAuth not configured' });
+  const params = new URLSearchParams({
+    client_id: KAKAO_CLIENT_ID,
+    redirect_uri: `${BACKEND_URL}/api/auth/kakao/callback`,
+    response_type: 'code',
+  });
+  res.redirect(`https://kauth.kakao.com/oauth/authorize?${params}`);
+});
+
+app.get('/api/auth/kakao/callback', async (req, res) => {
+  try {
+    const { code } = req.query;
+    if (!code) return res.redirect(`${FRONTEND_URL}/#/login?error=no_code`);
+
+    // Exchange code for tokens
+    const tokenRes = await fetch('https://kauth.kakao.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: KAKAO_CLIENT_ID,
+        client_secret: KAKAO_CLIENT_SECRET || '',
+        redirect_uri: `${BACKEND_URL}/api/auth/kakao/callback`,
+        code,
+      }),
+    });
+    const tokens = await tokenRes.json();
+    if (!tokens.access_token) return res.redirect(`${FRONTEND_URL}/#/login?error=token_failed`);
+
+    // Get user info
+    const userRes = await fetch('https://kapi.kakao.com/v2/user/me', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+    const profile = await userRes.json();
+    const kakaoEmail = profile.kakao_account?.email || `kakao_${profile.id}@kakao.local`;
+    const kakaoName = profile.kakao_account?.profile?.nickname || profile.properties?.nickname || '카카오 사용자';
+
+    const { token } = await findOrCreateOAuthUser('kakao', String(profile.id), kakaoEmail, kakaoName);
+    res.redirect(`${FRONTEND_URL}/#/oauth-callback?token=${token}`);
+  } catch (err) {
+    console.error('[OAuth] Kakao callback error:', err.message);
+    res.redirect(`${FRONTEND_URL}/#/login?error=oauth_failed`);
+  }
+});
+
+// ─── OAuth Helper ───
+async function findOrCreateOAuthUser(provider, oauthId, email, name) {
+  // Check if OAuth account already linked
+  let result = await db.query(
+    'SELECT id, email, name FROM users WHERE oauth_provider = $1 AND oauth_id = $2',
+    [provider, oauthId]
+  );
+  let user;
+  if (result.rows.length > 0) {
+    user = result.rows[0];
+  } else {
+    // Check if email already exists (link account)
+    result = await db.query('SELECT id, email, name FROM users WHERE email = $1', [email]);
+    if (result.rows.length > 0) {
+      user = result.rows[0];
+      await db.query('UPDATE users SET oauth_provider = $1, oauth_id = $2 WHERE id = $3', [provider, oauthId, user.id]);
+    } else {
+      // Create new user (no password for OAuth users)
+      result = await db.query(
+        'INSERT INTO users (email, password_hash, name, oauth_provider, oauth_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, name, created_at',
+        [email, '', name, provider, oauthId]
+      );
+      user = result.rows[0];
+    }
+  }
+  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+  return { user, token };
+}
 
 // ─── Admin Endpoints ───
 app.get('/api/admin/users', async (req, res) => {
@@ -312,7 +454,12 @@ async function initDB() {
           created_at TIMESTAMP DEFAULT NOW()
         )
       `);
-      console.log('[DB] users table ready');
+      // Add OAuth columns if not exist
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS oauth_provider VARCHAR(50)`);
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS oauth_id VARCHAR(255)`);
+      // Allow null password for OAuth users
+      await db.query(`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL`).catch(() => {});
+      console.log('[DB] users table ready (with OAuth columns)');
 
       // Price tracking tables
       await db.query(`

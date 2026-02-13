@@ -14,6 +14,7 @@ import Security from "@/pages/Security";
 import Blockchain from "@/pages/Blockchain";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import OAuthCallback from "@/pages/OAuthCallback";
 import SharedTrip from "@/pages/SharedTrip";
 import Admin from "@/pages/Admin";
 
@@ -92,6 +93,12 @@ const App = () => {
               <Route 
                 path={ROUTE_PATHS.REGISTER} 
                 element={<Register />} 
+              />
+
+              {/* OAuth 콜백 */}
+              <Route 
+                path="/oauth-callback" 
+                element={<OAuthCallback />} 
               />
 
               {/* 관리자 대시보드 */}
