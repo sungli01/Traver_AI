@@ -207,7 +207,7 @@ export function NewTripForm({ onSubmit }: { onSubmit: (data: z.infer<typeof trip
                   <div className="relative">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
-                      placeholder="도시 또는 국가 검색..."
+                      placeholder="도시 또는 국가 검색 (목록에 없어도 직접 입력 가능)"
                       value={cityQuery || field.value}
                       onChange={(e) => {
                         setCityQuery(e.target.value);
@@ -215,6 +215,18 @@ export function NewTripForm({ onSubmit }: { onSubmit: (data: z.infer<typeof trip
                         setShowSuggestions(true);
                       }}
                       onFocus={() => setShowSuggestions(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && cityQuery.trim()) {
+                          field.onChange(cityQuery.trim());
+                          setShowSuggestions(false);
+                        }
+                      }}
+                      onBlur={() => {
+                        // Allow free text: if user typed something not in list, accept it
+                        if (cityQuery.trim() && !field.value) {
+                          field.onChange(cityQuery.trim());
+                        }
+                      }}
                       className="pl-10 bg-background/50 h-11"
                       autoComplete="off"
                     />

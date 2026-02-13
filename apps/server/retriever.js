@@ -85,7 +85,7 @@ async function buildContext(city, country, budget, days) {
 
   if (restaurants.length > 0) {
     ctx += `### 🍽️ 맛집 (${restaurants.length}개)\n`;
-    for (const r of restaurants.slice(0, 10)) {
+    for (const r of restaurants.slice(0, 7)) {
       ctx += `- **${r.name}**${r.name_local ? ` (${r.name_local})` : ''}: ${r.description || ''}`;
       if (r.signature?.length) ctx += ` | 시그니처: ${r.signature.join(', ')}`;
       if (r.avg_cost) ctx += ` | ~${r.avg_cost}원`;
@@ -97,7 +97,7 @@ async function buildContext(city, country, budget, days) {
 
   if (attractions.length > 0) {
     ctx += `\n### 🏛️ 관광지 (${attractions.length}개)\n`;
-    for (const a of attractions.slice(0, 10)) {
+    for (const a of attractions.slice(0, 8)) {
       ctx += `- **${a.name}**: ${a.description || ''}`;
       if (a.avg_cost) ctx += ` | ~${a.avg_cost}원`;
       if (a.lat && a.lng) ctx += ` | 📍${a.lat},${a.lng}`;

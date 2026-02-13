@@ -114,12 +114,22 @@ export function ScheduleMap({ scheduleData, activeDay, className = '' }: Schedul
       });
 
       if (coords.length > 1) {
-        L.polyline(coords, {
-          color,
-          weight: isActive ? 5 : 3,
-          opacity: isInactive ? 0.2 : isActive ? 0.9 : 0.6,
-          dashArray: isActive ? undefined : '8, 6',
-        }).addTo(map);
+        // Add clickable route segments
+        for (let i = 1; i < coords.length; i++) {
+          const segCoords = [coords[i - 1], coords[i]] as L.LatLngExpression[];
+          const fromAct = day.activities.filter(a => a.lat && a.lng)[i - 1];
+          const toAct = day.activities.filter(a => a.lat && a.lng)[i];
+          L.polyline(segCoords, {
+            color,
+            weight: isActive ? 5 : 3,
+            opacity: isInactive ? 0.2 : isActive ? 0.9 : 0.6,
+            dashArray: isActive ? undefined : '8, 6',
+          }).addTo(map).on('click', () => {
+            if (fromAct?.lat && fromAct?.lng && toAct?.lat && toAct?.lng) {
+              window.open(`https://www.google.com/maps/dir/${fromAct.lat},${fromAct.lng}/${toAct.lat},${toAct.lng}`, '_blank');
+            }
+          }).bindTooltip('클릭하여 길찾기', { sticky: true, className: 'text-xs' });
+        }
       }
     });
 

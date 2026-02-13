@@ -76,7 +76,9 @@ export default function Trips() {
   // Filter saved trips too
   const filteredSavedTrips = useMemo(() => {
     return savedTrips.filter(t => {
-      const matchesTab = activeTab === 'all' || activeTab === 'planning';
+      const matchesTab = activeTab === 'all' ||
+        (activeTab === 'planning' && t.status === 'planning') ||
+        (activeTab === 'confirmed' && t.status === 'confirmed');
       const matchesSearch = !searchQuery ||
         t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.destination.toLowerCase().includes(searchQuery.toLowerCase());
@@ -292,7 +294,13 @@ export default function Trips() {
                           <MapPin className="w-3.5 h-3.5" /> {trip.destination}
                         </p>
                       </div>
-                      <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-1 rounded-full">설계 중</span>
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
+                        trip.status === 'confirmed'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-primary/10 text-primary'
+                      }`}>
+                        {trip.status === 'confirmed' ? '예약 확정' : '설계 중'}
+                      </span>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {trip.period}</span>

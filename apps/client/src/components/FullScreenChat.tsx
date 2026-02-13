@@ -96,10 +96,36 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
 
     try {
       const contextMsgs = [...messages.slice(-5), userMsg].map(m => ({ role: m.role, content: m.content }));
+
+      // Determine message type and include existing itinerary context for partial modification
+      let msgType: 'generate' | 'modify' | 'chat' = 'generate';
+      let messageToSend = textToSend;
+
+      if (latestItinerary) {
+        // Already have itinerary → this is a modification or chat
+        const looksLikeModify = /수정|변경|바꿔|추가|삭제|제거|대신|다른|빼고|넣어/.test(textToSend);
+        if (looksLikeModify) {
+          msgType = 'modify';
+          // Include condensed existing itinerary as context
+          const condensed = {
+            title: latestItinerary.title,
+            destination: latestItinerary.destination,
+            days: latestItinerary.days.map(d => ({
+              day: d.day,
+              date: d.date,
+              places: d.activities.map(a => a.title),
+            })),
+          };
+          messageToSend = `[기존 일정 컨텍스트]\n${JSON.stringify(condensed)}\n\n[사용자 수정 요청]\n기존 일정을 유지하면서, 아래 요청에 해당하는 부분만 수정해줘:\n${textToSend}`;
+        } else {
+          msgType = 'chat';
+        }
+      }
+
       const response = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: textToSend, context: contextMsgs }),
+        body: JSON.stringify({ message: messageToSend, context: contextMsgs, type: msgType }),
       });
       const data = await response.json();
       const reply = data.reply || data.message || '응답을 받지 못했습니다.';

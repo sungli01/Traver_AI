@@ -90,7 +90,7 @@ function Connector() {
 }
 
 /* ── Place card (RAMZI style) ── */
-function PlaceCard({ activity, index, destination, isLast }: { activity: Activity; index: number; destination: string; isLast: boolean }) {
+function PlaceCard({ activity, index, destination, isLast, prevActivity }: { activity: Activity; index: number; destination: string; isLast: boolean; prevActivity?: Activity }) {
   const cfg = getConfig(activity.category);
 
   return (
@@ -151,7 +151,9 @@ function PlaceCard({ activity, index, destination, isLast }: { activity: Activit
               </a>
             )}
             <a
-              href={mapsUrl(activity.title, destination)}
+              href={prevActivity?.lat && prevActivity?.lng && activity.lat && activity.lng
+                ? `https://www.google.com/maps/dir/${prevActivity.lat},${prevActivity.lng}/${activity.lat},${activity.lng}`
+                : mapsUrl(activity.title, destination)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-medium"
@@ -245,6 +247,7 @@ function DaySection({ dayData, destination, isExpanded, onToggle }: { dayData: D
                   index={i}
                   destination={destination}
                   isLast={i === dayData.activities.length - 1}
+                  prevActivity={i > 0 ? dayData.activities[i - 1] : undefined}
                 />
               ))}
 

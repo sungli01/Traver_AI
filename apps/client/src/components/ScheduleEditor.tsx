@@ -4,7 +4,8 @@ import {
   ChevronDown, ChevronUp, Plus, Trash2, ArrowUp, ArrowDown,
   Save, MessageSquare, Wallet, CalendarDays, MapPin, X,
   Plane, UtensilsCrossed, ShoppingBag, Sparkles, Coffee,
-  Hotel, Check, Pencil, BarChart3
+  Hotel, Check, Pencil, BarChart3, CheckCircle2, CreditCard,
+  Navigation, Loader2, Lightbulb
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,7 +61,7 @@ export interface ScheduleData {
   days: EditableDay[];
   createdAt: string;
   updatedAt: string;
-  status: 'planning';
+  status: 'planning' | 'confirmed';
 }
 
 /* ── Category config ── */
@@ -138,8 +139,65 @@ export function deleteTrip(id: string) {
 }
 
 /* ── Activity Editor Row ── */
+/* ── Price Check Modal ── */
+function PriceCheckModal({ activity, destination, onClose }: { activity: EditableActivity; destination: string; onClose: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://traverai-production.up.railway.app';
+
+  const checkPrice = async () => {
+    setLoading(true);
+    try {
+      const query = `${destination} ${activity.title} 적정 가격 비용`;
+      const response = await fetch(`${apiUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: query, type: 'chat' }),
+      });
+      const data = await response.json();
+      setResult(data.reply || data.message || '정보를 가져올 수 없습니다.');
+    } catch {
+      setResult('서버 연결에 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md mx-4 p-5 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-base flex items-center gap-2">
+            <Lightbulb className="w-4 h-4 text-yellow-500" /> 적정가 확인
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="text-sm text-gray-600">
+          <p><strong>{activity.title}</strong> — 현재 비용: {activity.cost}</p>
+        </div>
+        {!result && !loading && (
+          <Button className="w-full rounded-xl" onClick={checkPrice}>
+            <Lightbulb className="w-4 h-4 mr-2" /> AI에게 적정가 문의하기
+          </Button>
+        )}
+        {loading && (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="w-5 h-5 animate-spin text-primary mr-2" />
+            <span className="text-sm text-gray-500">적정가 조회 중...</span>
+          </div>
+        )}
+        {result && (
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 text-sm leading-relaxed whitespace-pre-wrap max-h-60 overflow-y-auto">
+            {result}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ActivityRow({
-  activity, index, total, onUpdate, onDelete, onMove,
+  activity, index, total, onUpdate, onDelete, onMove, destination,
 }: {
   activity: EditableActivity;
   index: number;
@@ -147,8 +205,11 @@ function ActivityRow({
   onUpdate: (a: EditableActivity) => void;
   onDelete: () => void;
   onMove: (dir: -1 | 1) => void;
+  destination?: string;
+  prevActivity?: EditableActivity;
 }) {
   const [editing, setEditing] = useState(false);
+  const [showPriceCheck, setShowPriceCheck] = useState(false);
   const cfg = getConfig(activity.category);
   const Icon = cfg.icon;
 
@@ -252,11 +313,17 @@ function ActivityRow({
         className="w-full text-sm rounded-md border border-input bg-background px-2 py-1.5 resize-none"
         rows={2}
       />
-      <div className="flex justify-end">
+      <div className="flex justify-between">
+        <Button variant="outline" size="sm" className="h-7 text-xs rounded-lg gap-1" onClick={() => setShowPriceCheck(true)}>
+          <Lightbulb className="w-3 h-3" /> 적정가 확인
+        </Button>
         <Button size="sm" className="h-7 text-xs rounded-lg" onClick={() => setEditing(false)}>
           <Check className="w-3 h-3 mr-1" /> 완료
         </Button>
       </div>
+      {showPriceCheck && (
+        <PriceCheckModal activity={activity} destination={destination || ''} onClose={() => setShowPriceCheck(false)} />
+      )}
     </div>
   );
 }
@@ -293,13 +360,14 @@ function AddActivityForm({ onAdd, onCancel }: { onAdd: (a: EditableActivity) => 
 
 /* ── Day Accordion ── */
 function DayAccordion({
-  day, isExpanded, onToggle, onUpdate, onDelete,
+  day, isExpanded, onToggle, onUpdate, onDelete, destination,
 }: {
   day: EditableDay;
   isExpanded: boolean;
   onToggle: () => void;
   onUpdate: (d: EditableDay) => void;
   onDelete: () => void;
+  destination?: string;
 }) {
   const [addingActivity, setAddingActivity] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -380,17 +448,31 @@ function DayAccordion({
               )}
 
               {/* Activities */}
-              {day.activities.map((act, i) => (
-                <ActivityRow
-                  key={act.id}
-                  activity={act}
-                  index={i}
-                  total={day.activities.length}
-                  onUpdate={(a) => updateActivity(act.id, a)}
-                  onDelete={() => setDeleteTarget(act.id)}
-                  onMove={(dir) => moveActivity(act.id, dir)}
-                />
-              ))}
+              {day.activities.map((act, i) => {
+                const prev = i > 0 ? day.activities[i - 1] : undefined;
+                const navUrl = prev?.lat && prev?.lng && act.lat && act.lng
+                  ? `https://www.google.com/maps/dir/${prev.lat},${prev.lng}/${act.lat},${act.lng}`
+                  : null;
+                return (
+                  <div key={act.id}>
+                    {navUrl && (
+                      <a href={navUrl} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-medium ml-10 mb-1">
+                        <Navigation className="w-3 h-3" /> 🗺️ 길찾기 (이전 장소 → {act.title})
+                      </a>
+                    )}
+                    <ActivityRow
+                      activity={act}
+                      index={i}
+                      total={day.activities.length}
+                      onUpdate={(a) => updateActivity(act.id, a)}
+                      onDelete={() => setDeleteTarget(act.id)}
+                      onMove={(dir) => moveActivity(act.id, dir)}
+                      destination={destination}
+                    />
+                  </div>
+                );
+              })}
 
               {/* Accommodation */}
               {day.accommodation && (
@@ -456,6 +538,9 @@ export function ScheduleEditor({
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set(data.days.map(d => d.id)));
   const [saved, setSaved] = useState(false);
   const [deleteDayTarget, setDeleteDayTarget] = useState<string | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentType, setPaymentType] = useState<'total' | 'per-person'>('total');
+  const [personCount, setPersonCount] = useState(1);
 
   const totalCost = useMemo(() => {
     return data.days.reduce((sum, day) => {
@@ -520,6 +605,29 @@ export function ScheduleEditor({
     setSaved(true);
   };
 
+  const handleConfirm = () => {
+    const confirmed = { ...data, status: 'confirmed' as const };
+    setData(confirmed);
+    saveTrip(confirmed);
+    setSaved(true);
+  };
+
+  const handlePaymentProceed = () => {
+    const amount = paymentType === 'per-person' && personCount > 1
+      ? Math.ceil(totalCost / personCount)
+      : totalCost;
+    localStorage.setItem('paymentInfo', JSON.stringify({
+      tripId: data.id,
+      tripTitle: data.title,
+      totalCost,
+      paymentType,
+      personCount: paymentType === 'per-person' ? personCount : 1,
+      amountToPay: amount,
+    }));
+    window.location.hash = '#/payment';
+    setShowPaymentModal(false);
+  };
+
   return (
     <div className="w-full max-w-4xl mx-auto space-y-4">
       {/* Header */}
@@ -536,6 +644,11 @@ export function ScheduleEditor({
           <Button size="sm" className="rounded-xl gap-1.5 text-xs" onClick={handleSave}>
             <Save className="w-3.5 h-3.5" /> {saved ? '저장됨 ✓' : '저장'}
           </Button>
+          {data.status !== 'confirmed' && (
+            <Button size="sm" variant="outline" className="rounded-xl gap-1.5 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50" onClick={handleConfirm}>
+              <CheckCircle2 className="w-3.5 h-3.5" /> 계획 확정
+            </Button>
+          )}
         </div>
       </div>
 
@@ -552,6 +665,11 @@ export function ScheduleEditor({
           <Badge variant="secondary" className="text-[11px] gap-1 rounded-full px-2.5 py-0.5 bg-primary/10 text-primary border-0">
             <Wallet className="w-3 h-3" /> 예산: {data.totalBudget}
           </Badge>
+          {data.status === 'confirmed' && (
+            <Badge className="text-[11px] gap-1 rounded-full px-2.5 py-0.5 bg-emerald-100 text-emerald-700 border-0">
+              <CheckCircle2 className="w-3 h-3" /> 예약 확정
+            </Badge>
+          )}
         </div>
         {/* Cost summary */}
         <div className="mt-3 flex items-center gap-2 text-sm">
@@ -574,6 +692,7 @@ export function ScheduleEditor({
             onToggle={() => toggleDay(day.id)}
             onUpdate={(d) => updateDay(day.id, d)}
             onDelete={() => setDeleteDayTarget(day.id)}
+            destination={data.destination}
           />
         ))}
       </div>
@@ -582,6 +701,53 @@ export function ScheduleEditor({
       <Button variant="outline" className="w-full rounded-2xl h-12 gap-2 border-dashed text-muted-foreground hover:text-primary" onClick={addDay}>
         <Plus className="w-4 h-4" /> Day {data.days.length + 1} 추가
       </Button>
+
+      {/* Payment request button */}
+      <Button
+        variant="outline"
+        className="w-full rounded-2xl h-12 gap-2 border-primary text-primary hover:bg-primary/5 font-semibold"
+        onClick={() => setShowPaymentModal(true)}
+      >
+        <CreditCard className="w-4 h-4" /> 결제 요청 ({totalCost.toLocaleString()}원)
+      </Button>
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowPaymentModal(false)}>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-lg">결제 요청</h3>
+              <button onClick={() => setShowPaymentModal(false)}><X className="w-4 h-4 text-gray-400" /></button>
+            </div>
+            <div className="text-center py-2">
+              <p className="text-sm text-gray-500">총 비용</p>
+              <p className="text-3xl font-black text-primary">{totalCost.toLocaleString()}원</p>
+            </div>
+            <div className="space-y-2">
+              <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer hover:bg-gray-50" onClick={() => setPaymentType('total')}>
+                <input type="radio" name="payType" checked={paymentType === 'total'} onChange={() => setPaymentType('total')} className="accent-primary" />
+                <span className="text-sm font-medium">단체 전체 결제</span>
+              </label>
+              <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer hover:bg-gray-50" onClick={() => setPaymentType('per-person')}>
+                <input type="radio" name="payType" checked={paymentType === 'per-person'} onChange={() => setPaymentType('per-person')} className="accent-primary" />
+                <span className="text-sm font-medium">인당 결제</span>
+              </label>
+            </div>
+            {paymentType === 'per-person' && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">인원 수</label>
+                <Input type="number" min={1} value={personCount} onChange={e => setPersonCount(Math.max(1, parseInt(e.target.value) || 1))} className="h-10" />
+                <p className="text-sm text-gray-500">
+                  인당 금액: <strong className="text-primary">{Math.ceil(totalCost / personCount).toLocaleString()}원</strong>
+                </p>
+              </div>
+            )}
+            <Button className="w-full rounded-xl h-11 font-semibold" onClick={handlePaymentProceed}>
+              <CreditCard className="w-4 h-4 mr-2" /> 결제 진행
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Delete day confirmation */}
       <AlertDialog open={!!deleteDayTarget} onOpenChange={() => setDeleteDayTarget(null)}>
