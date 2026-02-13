@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Plus,
@@ -17,6 +17,8 @@ import {
 import { sampleTrips } from '@/data/index';
 import { TripGrid } from '@/components/TripCards';
 import { NewTripForm } from '@/components/Forms';
+import { FullScreenChat } from '@/components/FullScreenChat';
+import { ScheduleEditor, loadSavedTrips, type ScheduleData } from '@/components/ScheduleEditor';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -35,15 +37,24 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 
-/**
- * 여행 관리 페이지
- * 사용자의 모든 여행 계획, 예약 상태, 일정을 통합 관리하는 중앙 허브 페이지입니다.
- */
+type ViewMode = 'list' | 'chat' | 'editor';
+
 export default function Trips() {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>();
+  const [savedTrips, setSavedTrips] = useState<ScheduleData[]>([]);
+  const [editingSchedule, setEditingSchedule] = useState<ScheduleData | null>(null);
   const { toast } = useToast();
+
+  // Load saved trips from localStorage
+  const refreshSavedTrips = useCallback(() => {
+    setSavedTrips(loadSavedTrips());
+  }, []);
+
+  useEffect(() => { refreshSavedTrips(); }, [refreshSavedTrips]);
 
   // 필터링된 여행 목록 계산
   const filteredTrips = useMemo(() => {
@@ -62,20 +73,30 @@ export default function Trips() {
     });
   }, [activeTab, searchQuery]);
 
+  // Filter saved trips too
+  const filteredSavedTrips = useMemo(() => {
+    return savedTrips.filter(t => {
+      const matchesTab = activeTab === 'all' || activeTab === 'planning';
+      const matchesSearch = !searchQuery ||
+        t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.destination.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesTab && matchesSearch;
+    });
+  }, [savedTrips, activeTab, searchQuery]);
+
   // 요약 통계 데이터
   const stats = useMemo(() => {
     return {
-      total: sampleTrips.length,
+      total: sampleTrips.length + savedTrips.length,
       upcoming: sampleTrips.filter(t => t.status === TRIP_STATUS.CONFIRMED).length,
-      planning: sampleTrips.filter(t => t.status === TRIP_STATUS.PLANNING).length,
+      planning: sampleTrips.filter(t => t.status === TRIP_STATUS.PLANNING).length + savedTrips.length,
       totalSpent: sampleTrips.reduce((acc, t) => acc + t.spent, 0)
     };
-  }, []);
+  }, [savedTrips]);
 
   const handleCreateTrip = (data: any) => {
     setIsDialogOpen(false);
     
-    // AI 채팅으로 여행 계획 요청 전달
     const startStr = data.startDate ? new Date(data.startDate).toLocaleDateString('ko-KR') : '';
     const endStr = data.endDate ? new Date(data.endDate).toLocaleDateString('ko-KR') : '';
     const budget = data.budget ? `${data.budget.toLocaleString()}원` : '';
@@ -87,8 +108,8 @@ export default function Trips() {
       chatMessage += `\n\n추가 요청사항:\n${data.additionalInfo.trim()}`;
     }
     
-    // 커스텀 이벤트로 채팅 윈도우에 메시지 전달
-    window.dispatchEvent(new CustomEvent('travel-chat-send', { detail: chatMessage }));
+    setChatInitialMessage(chatMessage);
+    setViewMode('chat');
     
     toast({
       title: "AI 여행 계획 시작",
@@ -96,6 +117,55 @@ export default function Trips() {
     });
   };
 
+  const handleStartNewChat = () => {
+    setChatInitialMessage(undefined);
+    setViewMode('chat');
+  };
+
+  const handleOpenSavedTrip = (schedule: ScheduleData) => {
+    setEditingSchedule(schedule);
+    setViewMode('editor');
+  };
+
+  // Fullscreen chat mode
+  if (viewMode === 'chat') {
+    return (
+      <div className="w-full h-[calc(100vh-4rem)] -mt-4 -mb-12">
+        <FullScreenChat
+          onBack={() => {
+            setViewMode('list');
+            refreshSavedTrips();
+          }}
+          initialMessage={chatInitialMessage}
+          onScheduleSaved={refreshSavedTrips}
+        />
+      </div>
+    );
+  }
+
+  // Schedule editor mode
+  if (viewMode === 'editor' && editingSchedule) {
+    return (
+      <div className="w-full pb-12 animate-in fade-in duration-500">
+        <ScheduleEditor
+          schedule={editingSchedule}
+          onBack={() => {
+            setViewMode('list');
+            refreshSavedTrips();
+          }}
+          onRequestAIEdit={(sd) => {
+            const summary = sd.days.map(d =>
+              `Day${d.day}(${d.date}): ${d.activities.map(a => a.title).join(', ')}`
+            ).join('\n');
+            setChatInitialMessage(`이 일정을 수정해줘:\n${summary}`);
+            setViewMode('chat');
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Normal list mode
   return (
     <div className="w-full space-y-8 pb-12 animate-in fade-in duration-700">
       {/* 상단 헤더 영역 */}
@@ -106,25 +176,36 @@ export default function Trips() {
             2026년의 모든 여행 계획과 예약 상태를 에이전트와 함께 관리하세요.
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="lg" className="w-full sm:w-auto rounded-2xl gap-2 shadow-xl shadow-primary/25 h-14 px-8 text-base font-semibold transition-transform hover:scale-[1.02] active:scale-[0.98]">
-              <Plus className="w-6 h-6" />
-              새 여행 계획하기
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto rounded-[2.5rem] border-none shadow-2xl backdrop-blur-xl bg-background/95">
-            <DialogHeader className="pb-4">
-              <DialogTitle className="text-3xl font-bold">새로운 여행 시작하기</DialogTitle>
-              <DialogDescription className="text-lg">
-                AI 멀티에이전트가 당신의 취향을 분석하여 최적의 경로와 예약을 제안합니다.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <NewTripForm onSubmit={handleCreateTrip} />
-            </div>
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-3 w-full sm:w-auto">
+          <Button
+            size="lg"
+            variant="outline"
+            className="flex-1 sm:flex-none rounded-2xl gap-2 h-14 px-6 text-base font-semibold"
+            onClick={handleStartNewChat}
+          >
+            <Plus className="w-5 h-5" />
+            빠른 AI 채팅
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="lg" className="flex-1 sm:flex-none rounded-2xl gap-2 shadow-xl shadow-primary/25 h-14 px-8 text-base font-semibold transition-transform hover:scale-[1.02] active:scale-[0.98]">
+                <Plus className="w-6 h-6" />
+                새 여행 계획하기
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto rounded-[2.5rem] border-none shadow-2xl backdrop-blur-xl bg-background/95">
+              <DialogHeader className="pb-4">
+                <DialogTitle className="text-3xl font-bold">새로운 여행 시작하기</DialogTitle>
+                <DialogDescription className="text-lg">
+                  AI 멀티에이전트가 당신의 취향을 분석하여 최적의 경로와 예약을 제안합니다.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <NewTripForm onSubmit={handleCreateTrip} />
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* 요약 대시보드 위젯 */}
@@ -186,6 +267,48 @@ export default function Trips() {
         </div>
       </div>
 
+      {/* Saved trips from AI (localStorage) */}
+      {filteredSavedTrips.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+            📋 AI 생성 일정 <span className="text-sm font-normal text-muted-foreground">({filteredSavedTrips.length})</span>
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredSavedTrips.map(trip => (
+              <motion.div
+                key={trip.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -2 }}
+                className="cursor-pointer"
+                onClick={() => handleOpenSavedTrip(trip)}
+              >
+                <Card className="border shadow-sm hover:shadow-lg transition-all rounded-2xl overflow-hidden">
+                  <CardContent className="p-5 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-bold text-base">{trip.title}</h3>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                          <MapPin className="w-3.5 h-3.5" /> {trip.destination}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-1 rounded-full">설계 중</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {trip.period}</span>
+                      <span className="flex items-center gap-1"><Wallet className="w-3 h-3" /> {trip.totalBudget}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {trip.days.length}일 · {trip.days.reduce((s, d) => s + d.activities.length, 0)}개 장소
+                    </p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 여행 리스트 그리드 영역 */}
       <div className="min-h-[500px]">
         {filteredTrips.length > 0 ? (
@@ -193,7 +316,7 @@ export default function Trips() {
             trips={filteredTrips} 
             onTripSelect={(trip) => toast({ title: `${trip.title}`, description: "에이전트가 상세 일정을 로드하고 있습니다." })}
           />
-        ) : (
+        ) : filteredSavedTrips.length === 0 ? (
           <motion.div 
             initial={{ opacity: 0, scale: 0.98 }} 
             animate={{ opacity: 1, scale: 1 }}
@@ -213,12 +336,12 @@ export default function Trips() {
               <Button variant="outline" className="rounded-2xl h-12 px-8" onClick={() => { setActiveTab('all'); setSearchQuery(''); }}>
                 검색 조건 초기화
               </Button>
-              <Button className="rounded-2xl h-12 px-8 shadow-lg shadow-primary/20" onClick={() => setIsDialogOpen(true)}>
-                첫 여행 만들기
+              <Button className="rounded-2xl h-12 px-8 shadow-lg shadow-primary/20" onClick={handleStartNewChat}>
+                AI와 여행 계획하기
               </Button>
             </div>
           </motion.div>
-        )}
+        ) : null}
       </div>
     </div>
   );

@@ -318,7 +318,7 @@ function CostSummary({ data }: { data: Itinerary }) {
   );
 }
 
-export function ItineraryCard({ data }: { data: Itinerary }) {
+export function ItineraryCard({ data, onMoveToSchedule }: { data: Itinerary; onMoveToSchedule?: (data: Itinerary) => void }) {
   const [viewMode, setViewMode] = useState<'summary' | 'full'>('summary');
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set([1]));
   const [showMap, setShowMap] = useState(false);
@@ -455,6 +455,18 @@ export function ItineraryCard({ data }: { data: Itinerary }) {
           />
         ))}
       </div>
+
+      {/* Move to schedule note button */}
+      {onMoveToSchedule && (
+        <div className="px-4 pb-4">
+          <Button
+            className="w-full rounded-2xl h-11 gap-2 text-sm font-semibold shadow-md"
+            onClick={() => onMoveToSchedule(data)}
+          >
+            📋 스케줄 노트로 옮기기
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
