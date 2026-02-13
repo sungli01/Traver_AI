@@ -162,6 +162,60 @@ export default function Blockchain() {
         </div>
       </motion.div>
 
+      {/* 블록체인 도입 필요성 섹션 */}
+      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5">
+        <CardHeader>
+          <CardTitle className="text-xl flex items-center gap-2">
+            <Blocks className="h-6 w-6 text-primary" />
+            여행 서비스에서 블록체인 도입 필요성
+          </CardTitle>
+          <CardDescription>왜 블록체인이 여행 산업에 혁신을 가져올 수 있는가</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[
+              {
+                title: '거래 투명성',
+                emoji: '🔍',
+                desc: '여행 예약/결제 내역을 블록체인에 기록하여 변조 불가능한 증명을 제공합니다. 여행사와 고객 간 신뢰를 극대화합니다.',
+              },
+              {
+                title: '스마트 컨트랙트',
+                emoji: '📝',
+                desc: '취소/환불 정책을 코드로 자동화하여 분쟁을 최소화합니다. 조건 충족 시 자동으로 환불이 이루어집니다.',
+              },
+              {
+                title: '개인정보 보호 (ZK-Proof)',
+                emoji: '🛡️',
+                desc: '영지식 증명(ZK-Proof)으로 개인정보 노출 없이 신원 확인이 가능합니다. 여권 검증, 나이 확인 등에 활용됩니다.',
+              },
+              {
+                title: '포인트/마일리지 토큰화',
+                emoji: '🪙',
+                desc: '마일리지를 토큰화하여 여행사 간 호환이 가능하고, 만료 없는 리워드 시스템을 구축할 수 있습니다.',
+              },
+              {
+                title: 'P2P 여행 마켓플레이스',
+                emoji: '🌐',
+                desc: '중개 수수료를 최소화하고 직거래 안전을 보장합니다. 소규모 여행사와 현지 가이드도 글로벌 시장에 접근 가능합니다.',
+              },
+            ].map((item, i) => (
+              <div key={i} className="p-4 rounded-xl bg-background/60 backdrop-blur-sm border border-border/50">
+                <div className="text-2xl mb-2">{item.emoji}</div>
+                <h4 className="font-semibold mb-1">{item.title}</h4>
+                <p className="text-sm text-muted-foreground">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              ⚠️ 현재 데모 환경이며, 실제 블록체인 연동은 사업 확장 시 구현 예정입니다.
+              아래 데이터는 시스템 컨셉 시연을 위한 시뮬레이션입니다.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="transactions" className="space-y-6">
         <TabsList className="flex w-full overflow-x-auto">
           <TabsTrigger value="transactions">블록체인 거래</TabsTrigger>

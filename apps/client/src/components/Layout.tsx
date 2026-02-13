@@ -12,8 +12,10 @@ import {
   Menu, 
   X, 
   LogOut,
+  LogIn,
   User,
-  Globe
+  Globe,
+  Settings2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ROUTE_PATHS } from '@/lib/index';
@@ -22,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { IMAGES } from '@/assets/images';
 import { TravelChatWindow } from '@/components/TravelChatWindow';
+import { useAuthStore } from '@/stores/authStore';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -33,6 +36,7 @@ const NAV_ITEMS = [
   { name: '결제 관리', path: ROUTE_PATHS.PAYMENT, icon: CreditCard },
   { name: '보안 센터', path: ROUTE_PATHS.SECURITY, icon: Shield },
   { name: '블록체인', path: ROUTE_PATHS.BLOCKCHAIN, icon: Blocks },
+  { name: '관리자', path: ROUTE_PATHS.ADMIN, icon: Settings2 },
 ];
 
 const SIDEBAR_AGENTS = [
@@ -97,6 +101,10 @@ export function Layout({ children }: LayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeAgents, setActiveAgents] = useState<string[]>([]);
   const location = useLocation();
+  const { user, logout, loadFromStorage } = useAuthStore();
+  const navigate = useNavigate();
+
+  useEffect(() => { loadFromStorage(); }, []);
 
   const getPageTitle = () => {
     const currentItem = NAV_ITEMS.find(item => item.path === location.pathname);
@@ -168,23 +176,36 @@ export function Layout({ children }: LayoutProps) {
         </div>
 
         <div className="p-4 border-t border-sidebar-border">
-          <div className={`flex items-center gap-3 ${isSidebarOpen ? 'px-2' : 'justify-center'}`}>
-            <Avatar className="h-9 w-9 border border-sidebar-border">
-              <AvatarImage src="https://github.com/shadcn.png" />
-              <AvatarFallback><User /></AvatarFallback>
-            </Avatar>
-            {isSidebarOpen && (
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate text-sidebar-foreground">김민수</p>
-                <p className="text-xs text-sidebar-foreground/60 truncate">Premium Plan</p>
-              </div>
-            )}
-            {isSidebarOpen && (
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-sidebar-foreground/60 hover:text-destructive">
-                <LogOut className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
+          {user ? (
+            <div className={`flex items-center gap-3 ${isSidebarOpen ? 'px-2' : 'justify-center'}`}>
+              <Avatar className="h-9 w-9 border border-sidebar-border">
+                <AvatarFallback>{user.name?.[0] || 'U'}</AvatarFallback>
+              </Avatar>
+              {isSidebarOpen && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate text-sidebar-foreground">{user.name}</p>
+                  <p className="text-xs text-sidebar-foreground/60 truncate">{user.email}</p>
+                </div>
+              )}
+              {isSidebarOpen && (
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-sidebar-foreground/60 hover:text-destructive" onClick={logout}>
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className={`${isSidebarOpen ? 'px-2' : 'flex justify-center'}`}>
+              {isSidebarOpen ? (
+                <Button variant="outline" className="w-full" onClick={() => navigate(ROUTE_PATHS.LOGIN)}>
+                  <LogIn className="h-4 w-4 mr-2" /> 로그인
+                </Button>
+              ) : (
+                <Button variant="ghost" size="icon" onClick={() => navigate(ROUTE_PATHS.LOGIN)}>
+                  <LogIn className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </aside>
 

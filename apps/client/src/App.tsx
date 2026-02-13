@@ -15,6 +15,7 @@ import Blockchain from "@/pages/Blockchain";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import SharedTrip from "@/pages/SharedTrip";
+import Admin from "@/pages/Admin";
 
 /**
  * @description AI 멀티에이전트 여행 서비스 - TravelAgent AI
@@ -91,6 +92,12 @@ const App = () => {
               <Route 
                 path={ROUTE_PATHS.REGISTER} 
                 element={<Register />} 
+              />
+
+              {/* 관리자 대시보드 */}
+              <Route 
+                path={ROUTE_PATHS.ADMIN} 
+                element={<Admin />} 
               />
 
               {/* 공유받은 일정 import */}
