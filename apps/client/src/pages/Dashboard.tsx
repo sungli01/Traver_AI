@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Plus,
@@ -7,14 +7,20 @@ import {
   ShieldCheck,
   ArrowRight,
   Bot,
-  Plane
+  Plane,
+  MapPin,
+  Wallet,
+  CheckCircle2,
+  Clock
 } from 'lucide-react';
 import { ROUTE_PATHS, formatCurrency } from '@/lib/index';
 import { sampleAgents, sampleTrips } from '@/data/index';
 import { TripGrid } from '@/components/TripCards';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Link } from 'react-router-dom';
+import { Badge } from '@/components/ui/badge';
+import { Link, useNavigate } from 'react-router-dom';
+import { loadSavedTrips, type ScheduleData } from '@/components/ScheduleEditor';
 
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
@@ -31,7 +37,16 @@ const staggerContainer = {
 };
 
 export default function Dashboard() {
-  const activeTripsCount = sampleTrips.filter(t => t.status !== 'COMPLETED' && t.status !== 'CANCELLED').length;
+  const [savedTrips, setSavedTrips] = useState<ScheduleData[]>([]);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    setSavedTrips(loadSavedTrips());
+  }, []);
+
+  const confirmedCount = savedTrips.filter(t => t.status === 'confirmed').length;
+  const planningCount = savedTrips.filter(t => t.status === 'planning').length;
+  const activeTripsCount = sampleTrips.filter(t => t.status !== 'COMPLETED' && t.status !== 'CANCELLED').length + savedTrips.length;
   const totalSpent = sampleTrips.reduce((acc, curr) => acc + curr.spent, 0);
   const activeAgentsCount = sampleAgents.filter(a => a.status === 'working' || a.status === 'success').length;
 
@@ -136,6 +151,66 @@ export default function Dashboard() {
           </Card>
         </motion.div>
       </motion.div>
+
+      {/* AI Generated Trips from localStorage */}
+      {savedTrips.length > 0 && (
+        <motion.section
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          className="space-y-6"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-primary" />
+              <h2 className="text-lg sm:text-2xl font-bold">내 여행 프로젝트</h2>
+              <span className="text-sm text-muted-foreground">({savedTrips.length})</span>
+            </div>
+            <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-primary">
+              <Link to={ROUTE_PATHS.TRIPS}>
+                전체 보기 <ArrowRight className="w-4 h-4 ml-1" />
+              </Link>
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {savedTrips.map(trip => (
+              <motion.div
+                key={trip.id}
+                whileHover={{ y: -2 }}
+                className="cursor-pointer"
+                onClick={() => navigate(ROUTE_PATHS.TRIPS)}
+              >
+                <Card className="border shadow-sm hover:shadow-lg transition-all rounded-2xl overflow-hidden">
+                  <CardContent className="p-5 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-bold text-base">{trip.title}</h3>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                          <MapPin className="w-3.5 h-3.5" /> {trip.destination}
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className={`text-[10px] font-bold rounded-full ${
+                        trip.status === 'confirmed'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-primary/10 text-primary'
+                      }`}>
+                        {trip.status === 'confirmed' ? '예약 확정' : '설계 중'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {trip.period}</span>
+                      <span className="flex items-center gap-1"><Wallet className="w-3 h-3" /> {trip.totalBudget}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {trip.days.length}일 · {trip.days.reduce((s, d) => s + d.activities.length, 0)}개 장소
+                    </p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </motion.section>
+      )}
 
       {/* Upcoming Trips Section */}
       <motion.section 

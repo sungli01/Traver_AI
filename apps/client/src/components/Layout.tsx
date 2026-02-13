@@ -127,7 +127,7 @@ export function Layout({ children }: LayoutProps) {
     <div className="flex min-h-screen bg-background font-sans">
       {/* Sidebar - Desktop */}
       <aside
-        className={`hidden md:flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 ${
+        className={`hidden md:flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 h-screen sticky top-0 ${
           isSidebarOpen ? 'w-64' : 'w-20'
         }`}
       >
@@ -144,7 +144,7 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </div>
 
-        <nav className="flex-1 py-6 px-3 space-y-1">
+        <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.path}

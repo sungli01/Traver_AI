@@ -197,7 +197,12 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
   };
 
   const handleAIEditRequest = (sd: ScheduleData) => {
+    // Reset status to planning when requesting AI edit
+    const updated = { ...sd, status: 'planning' as const, updatedAt: new Date().toISOString() };
+    saveTrip(updated);
+    setScheduleData(updated);
     setScheduleMode(false);
+    onScheduleSaved?.();
     const summary = sd.days.map(d =>
       `Day${d.day}(${d.date}): ${d.activities.map(a => a.title).join(', ')}`
     ).join('\n');

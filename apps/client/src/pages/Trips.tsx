@@ -18,7 +18,8 @@ import { sampleTrips } from '@/data/index';
 import { TripGrid } from '@/components/TripCards';
 import { NewTripForm } from '@/components/Forms';
 import { FullScreenChat } from '@/components/FullScreenChat';
-import { ScheduleEditor, loadSavedTrips, type ScheduleData } from '@/components/ScheduleEditor';
+import { ScheduleEditor, loadSavedTrips, saveTrip, type ScheduleData } from '@/components/ScheduleEditor';
+import { ScheduleMap } from '@/components/ScheduleMap';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -38,6 +39,72 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 
 type ViewMode = 'list' | 'chat' | 'editor';
+
+import { Map as MapIcon, Pencil } from 'lucide-react';
+
+function ScheduleEditorWithMap({ schedule, onBack, onRequestAIEdit }: {
+  schedule: ScheduleData;
+  onBack: () => void;
+  onRequestAIEdit: (sd: ScheduleData) => void;
+}) {
+  const [activeDay, setActiveDay] = useState<number | null>(null);
+  const [liveData, setLiveData] = useState<ScheduleData>(schedule);
+  const [mobileTab, setMobileTab] = useState<'editor' | 'map'>('editor');
+
+  return (
+    <div className="w-full h-[calc(100vh-4rem)] -mt-4 -mb-12 flex flex-col">
+      {/* Mobile tabs */}
+      <div className="flex lg:hidden border-b border-border shrink-0">
+        <button
+          onClick={() => setMobileTab('editor')}
+          className={`flex-1 py-2.5 text-sm font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${mobileTab === 'editor' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}
+        >
+          <Pencil className="w-3.5 h-3.5" /> 편집
+        </button>
+        <button
+          onClick={() => setMobileTab('map')}
+          className={`flex-1 py-2.5 text-sm font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${mobileTab === 'map' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}
+        >
+          <MapIcon className="w-3.5 h-3.5" /> 지도
+        </button>
+      </div>
+
+      <div className="flex-1 min-h-0 flex">
+        {/* Desktop: side by side */}
+        <div className="hidden lg:flex flex-1">
+          <div className="w-[45%] min-w-[320px] border-r border-border overflow-y-auto p-4">
+            <ScheduleEditor
+              schedule={schedule}
+              onBack={onBack}
+              onRequestAIEdit={onRequestAIEdit}
+              onActiveDayChange={setActiveDay}
+              onDataChange={setLiveData}
+            />
+          </div>
+          <div className="w-[55%]">
+            <ScheduleMap scheduleData={liveData} activeDay={activeDay ?? undefined} />
+          </div>
+        </div>
+        {/* Mobile: tab switch */}
+        <div className="lg:hidden flex-1">
+          {mobileTab === 'editor' ? (
+            <div className="h-full overflow-y-auto p-4">
+              <ScheduleEditor
+                schedule={schedule}
+                onBack={onBack}
+                onRequestAIEdit={onRequestAIEdit}
+                onActiveDayChange={setActiveDay}
+                onDataChange={setLiveData}
+              />
+            </div>
+          ) : (
+            <ScheduleMap scheduleData={liveData} activeDay={activeDay ?? undefined} className="h-full" />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Trips() {
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -88,10 +155,12 @@ export default function Trips() {
 
   // 요약 통계 데이터
   const stats = useMemo(() => {
+    const confirmedSaved = savedTrips.filter(t => t.status === 'confirmed').length;
+    const planningSaved = savedTrips.filter(t => t.status === 'planning').length;
     return {
       total: sampleTrips.length + savedTrips.length,
-      upcoming: sampleTrips.filter(t => t.status === TRIP_STATUS.CONFIRMED).length,
-      planning: sampleTrips.filter(t => t.status === TRIP_STATUS.PLANNING).length + savedTrips.length,
+      upcoming: sampleTrips.filter(t => t.status === TRIP_STATUS.CONFIRMED).length + confirmedSaved,
+      planning: sampleTrips.filter(t => t.status === TRIP_STATUS.PLANNING).length + planningSaved,
       totalSpent: sampleTrips.reduce((acc, t) => acc + t.spent, 0)
     };
   }, [savedTrips]);
@@ -145,25 +214,23 @@ export default function Trips() {
     );
   }
 
-  // Schedule editor mode
+  // Schedule editor mode with map
   if (viewMode === 'editor' && editingSchedule) {
     return (
-      <div className="w-full pb-12 animate-in fade-in duration-500">
-        <ScheduleEditor
-          schedule={editingSchedule}
-          onBack={() => {
-            setViewMode('list');
-            refreshSavedTrips();
-          }}
-          onRequestAIEdit={(sd) => {
-            const summary = sd.days.map(d =>
-              `Day${d.day}(${d.date}): ${d.activities.map(a => a.title).join(', ')}`
-            ).join('\n');
-            setChatInitialMessage(`이 일정을 수정해줘:\n${summary}`);
-            setViewMode('chat');
-          }}
-        />
-      </div>
+      <ScheduleEditorWithMap
+        schedule={editingSchedule}
+        onBack={() => { setViewMode('list'); refreshSavedTrips(); }}
+        onRequestAIEdit={(sd) => {
+          const updated = { ...sd, status: 'planning' as const, updatedAt: new Date().toISOString() };
+          saveTrip(updated);
+          refreshSavedTrips();
+          const summary = sd.days.map(d =>
+            `Day${d.day}(${d.date}): ${d.activities.map(a => a.title).join(', ')}`
+          ).join('\n');
+          setChatInitialMessage(`이 일정을 수정해줘:\n${summary}`);
+          setViewMode('chat');
+        }}
+      />
     );
   }
 
