@@ -53,6 +53,13 @@ function ScheduleEditorWithMap({ schedule, onBack, onRequestAIEdit }: {
   const [mobileTab, setMobileTab] = useState<'editor' | 'map'>('editor');
   const [showMap, setShowMap] = useState(false);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
+  const [navigationRoute, setNavigationRoute] = useState<{ from: { lat: number; lng: number; title: string }; to: { lat: number; lng: number; title: string } } | null>(null);
+
+  const handleNavigationRequest = useCallback((from: { lat: number; lng: number; title: string }, to: { lat: number; lng: number; title: string }) => {
+    setNavigationRoute({ from, to });
+    if (!showMap) setShowMap(true);
+    setMobileTab('map');
+  }, [showMap]);
 
   const handleActivitySelect = useCallback((activityId: string) => {
     setSelectedActivityId(activityId);
@@ -63,22 +70,6 @@ function ScheduleEditorWithMap({ schedule, onBack, onRequestAIEdit }: {
 
   return (
     <div className="w-full h-[calc(100vh-4rem)] -mt-4 -mb-12 flex flex-col">
-      {/* Map toggle button - Desktop */}
-      <div className="hidden lg:flex items-center shrink-0 px-4 py-2 border-b border-border bg-background/80 backdrop-blur-sm">
-        <motion.button
-          onClick={() => setShowMap(v => !v)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-            showMap
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'bg-muted text-muted-foreground hover:bg-muted/80'
-          }`}
-          whileTap={{ scale: 0.95 }}
-        >
-          <MapIcon className="w-4 h-4" />
-          📍 지도 {showMap ? '닫기' : '보기'}
-        </motion.button>
-      </div>
-
       {/* Mobile tabs */}
       <div className="flex lg:hidden border-b border-border shrink-0">
         <button
@@ -110,6 +101,21 @@ function ScheduleEditorWithMap({ schedule, onBack, onRequestAIEdit }: {
               onActiveDayChange={setActiveDay}
               onDataChange={setLiveData}
               onActivitySelect={handleActivitySelect}
+              onNavigationRequest={handleNavigationRequest}
+              mapToggle={
+                <motion.button
+                  onClick={() => setShowMap(v => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                    showMap
+                      ? 'bg-blue-500 text-white shadow-md'
+                      : 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400'
+                  }`}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <MapIcon className="w-3.5 h-3.5" />
+                  📍 지도 {showMap ? '닫기' : '보기'}
+                </motion.button>
+              }
             />
           </motion.div>
           <AnimatePresence>
@@ -125,6 +131,8 @@ function ScheduleEditorWithMap({ schedule, onBack, onRequestAIEdit }: {
                   scheduleData={liveData}
                   activeDay={activeDay ?? undefined}
                   selectedActivityId={selectedActivityId}
+                  navigationRoute={navigationRoute}
+                  onCloseNavigation={() => setNavigationRoute(null)}
                 />
               </motion.div>
             )}
@@ -141,6 +149,7 @@ function ScheduleEditorWithMap({ schedule, onBack, onRequestAIEdit }: {
                 onActiveDayChange={setActiveDay}
                 onDataChange={setLiveData}
                 onActivitySelect={handleActivitySelect}
+                onNavigationRequest={handleNavigationRequest}
               />
             </div>
           ) : (
@@ -149,6 +158,8 @@ function ScheduleEditorWithMap({ schedule, onBack, onRequestAIEdit }: {
               activeDay={activeDay ?? undefined}
               className="h-full"
               selectedActivityId={selectedActivityId}
+              navigationRoute={navigationRoute}
+              onCloseNavigation={() => setNavigationRoute(null)}
             />
           )}
         </div>
@@ -379,10 +390,16 @@ export default function Trips() {
         <div className="relative w-full lg:w-96 group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
           <Input 
-            placeholder="어디로 떠나시나요? 목적지 검색..."
+            placeholder="어디로 떠나시나요? 목적지 검색 (Enter로 AI 계획 시작)"
             className="pl-12 h-12 bg-background border-none shadow-inner rounded-2xl text-base focus-visible:ring-2 focus-visible:ring-primary/50"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && searchQuery.trim()) {
+                setChatInitialMessage(searchQuery.trim() + ' 여행 계획해줘');
+                setViewMode('chat');
+              }
+            }}
           />
         </div>
       </div>

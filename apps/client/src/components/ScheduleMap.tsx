@@ -1,13 +1,20 @@
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { ScheduleData } from './ScheduleEditor';
+
+export interface NavigationRoute {
+  from: { lat: number; lng: number; title: string };
+  to: { lat: number; lng: number; title: string };
+}
 
 interface ScheduleMapProps {
   scheduleData: ScheduleData;
   activeDay?: number;
   className?: string;
   selectedActivityId?: string | null;
+  navigationRoute?: NavigationRoute | null;
+  onCloseNavigation?: () => void;
 }
 
 const getTileUrl = (destination: string) => {
@@ -35,10 +42,12 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export function ScheduleMap({ scheduleData, activeDay, className = '', selectedActivityId }: ScheduleMapProps) {
+export function ScheduleMap({ scheduleData, activeDay, className = '', selectedActivityId, navigationRoute, onCloseNavigation }: ScheduleMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
+  const navLayerRef = useRef<L.LayerGroup | null>(null);
+  const [navInfo, setNavInfo] = useState<{ distance: string; duration: string } | null>(null);
 
   // Compute distances per day
   const dayDistances = useMemo(() => {
@@ -67,6 +76,10 @@ export function ScheduleMap({ scheduleData, activeDay, className = '', selectedA
 
     const map = L.map(mapRef.current, { zoomControl: true, scrollWheelZoom: true });
     mapInstanceRef.current = map;
+
+    // Fix #4: Edge browser map not rendering — force invalidateSize after layout
+    setTimeout(() => { map.invalidateSize(); }, 100);
+    setTimeout(() => { map.invalidateSize(); }, 500);
 
     L.tileLayer(getTileUrl(scheduleData.destination || ''), {
       attribution: '© OpenStreetMap',
@@ -168,9 +181,99 @@ export function ScheduleMap({ scheduleData, activeDay, className = '', selectedA
     };
   }, [scheduleData, activeDay, selectedActivityId]);
 
+  // Navigation route overlay
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    // Clear previous navigation layer
+    if (navLayerRef.current) {
+      navLayerRef.current.clearLayers();
+      map.removeLayer(navLayerRef.current);
+      navLayerRef.current = null;
+    }
+    setNavInfo(null);
+
+    if (!navigationRoute) return;
+
+    const { from, to } = navigationRoute;
+    const layerGroup = L.layerGroup().addTo(map);
+    navLayerRef.current = layerGroup;
+
+    // Add markers for from/to
+    const fromMarker = L.marker([from.lat, from.lng], {
+      icon: L.divIcon({
+        className: 'nav-marker',
+        html: `<div style="width:14px;height:14px;border-radius:50%;background:#22c55e;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>`,
+        iconSize: [14, 14], iconAnchor: [7, 7],
+      }),
+    }).bindPopup(`<strong>출발:</strong> ${from.title}`);
+    const toMarker = L.marker([to.lat, to.lng], {
+      icon: L.divIcon({
+        className: 'nav-marker',
+        html: `<div style="width:14px;height:14px;border-radius:50%;background:#ef4444;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>`,
+        iconSize: [14, 14], iconAnchor: [7, 7],
+      }),
+    }).bindPopup(`<strong>도착:</strong> ${to.title}`);
+    layerGroup.addLayer(fromMarker);
+    layerGroup.addLayer(toMarker);
+
+    // Fetch route from OSRM
+    fetch(`https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          const coords = route.geometry.coordinates.map((c: number[]) => [c[1], c[0]] as L.LatLngExpression);
+          const polyline = L.polyline(coords, { color: '#3b82f6', weight: 6, opacity: 0.85 });
+          layerGroup.addLayer(polyline);
+          map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+
+          const distKm = (route.distance / 1000).toFixed(1);
+          const durMin = Math.round(route.duration / 60);
+          const durStr = durMin >= 60 ? `${Math.floor(durMin / 60)}시간 ${durMin % 60}분` : `${durMin}분`;
+          setNavInfo({ distance: `${distKm} km`, duration: durStr });
+        } else {
+          // Fallback: straight line
+          const line = L.polyline([[from.lat, from.lng], [to.lat, to.lng]], { color: '#3b82f6', weight: 4, dashArray: '10, 8', opacity: 0.7 });
+          layerGroup.addLayer(line);
+          map.fitBounds(line.getBounds(), { padding: [50, 50] });
+          const dist = haversineDistance(from.lat, from.lng, to.lat, to.lng);
+          setNavInfo({ distance: `~${dist.toFixed(1)} km (직선)`, duration: '경로 없음' });
+        }
+      })
+      .catch(() => {
+        const line = L.polyline([[from.lat, from.lng], [to.lat, to.lng]], { color: '#3b82f6', weight: 4, dashArray: '10, 8', opacity: 0.7 });
+        layerGroup.addLayer(line);
+        map.fitBounds(line.getBounds(), { padding: [50, 50] });
+        const dist = haversineDistance(from.lat, from.lng, to.lat, to.lng);
+        setNavInfo({ distance: `~${dist.toFixed(1)} km (직선)`, duration: '경로 조회 실패' });
+      });
+  }, [navigationRoute]);
+
   return (
     <div className={`flex flex-col h-full ${className}`}>
-      <div ref={mapRef} className="flex-1 min-h-0" />
+      <div className="relative flex-1 min-h-0" style={{ minHeight: '400px' }}>
+        <div ref={mapRef} className="absolute inset-0" />
+        {/* Navigation route info overlay */}
+        {navigationRoute && navInfo && (
+          <div className="absolute top-3 left-3 right-3 z-[1000] bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-3 flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-gray-500 truncate">{navigationRoute.from.title} → {navigationRoute.to.title}</p>
+              <div className="flex items-center gap-3 mt-1">
+                <span className="text-sm font-bold text-primary">🚗 {navInfo.distance}</span>
+                <span className="text-sm font-bold text-gray-700 dark:text-gray-200">⏱ {navInfo.duration}</span>
+              </div>
+            </div>
+            <button
+              onClick={onCloseNavigation}
+              className="shrink-0 w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+      </div>
       {/* Legend + distance */}
       <div className="shrink-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-3 py-2">
         <div className="flex items-center justify-between mb-1.5">

@@ -93,9 +93,12 @@ export function ShareButton({ schedule, compact }: ShareButtonProps) {
   const shareUrl = buildShareUrl(schedule);
   const fullText = `${title}\n${desc}`;
 
+  const isMobile = () =>
+    'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.innerWidth < 768;
+
   const handleShare = async () => {
-    // Mobile: try Web Share API first
-    if (navigator.share) {
+    // Only use Web Share API on mobile touch devices (Edge desktop has broken navigator.share)
+    if (isMobile() && navigator.share) {
       try {
         await navigator.share({ title, text: desc, url: shareUrl });
         return;

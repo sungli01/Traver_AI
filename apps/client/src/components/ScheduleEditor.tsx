@@ -392,7 +392,7 @@ function AddActivityForm({ onAdd, onCancel }: { onAdd: (a: EditableActivity) => 
 
 /* ── Day Accordion ── */
 function DayAccordion({
-  day, isExpanded, onToggle, onUpdate, onDelete, destination, prevDayAccommodation, onActivitySelect,
+  day, isExpanded, onToggle, onUpdate, onDelete, destination, prevDayAccommodation, onActivitySelect, onNavigationRequest,
 }: {
   day: EditableDay;
   isExpanded: boolean;
@@ -402,6 +402,7 @@ function DayAccordion({
   destination?: string;
   prevDayAccommodation?: EditableAccommodation & { lat?: number; lng?: number };
   onActivitySelect?: (id: string) => void;
+  onNavigationRequest?: (from: { lat: number; lng: number; title: string }, to: { lat: number; lng: number; title: string }) => void;
 }) {
   const [addingActivity, setAddingActivity] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -490,16 +491,22 @@ function DayAccordion({
                 } else if (prevDayAccommodation?.lat && prevDayAccommodation?.lng) {
                   prev = prevDayAccommodation;
                 }
-                const navUrl = prev?.lat && prev?.lng && act.lat && act.lng
-                  ? `https://www.google.com/maps/dir/${prev.lat},${prev.lng}/${act.lat},${act.lng}`
-                  : null;
+                const canNavigate = prev?.lat && prev?.lng && act.lat && act.lng;
+                const prevTitle = i > 0
+                  ? day.activities[i - 1].title
+                  : (prevDayAccommodation ? '숙소' : '');
                 return (
                   <div key={act.id}>
-                    {navUrl && (
-                      <a href={navUrl} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-medium ml-10 mb-1">
+                    {canNavigate && (
+                      <button
+                        onClick={() => onNavigationRequest?.(
+                          { lat: prev!.lat!, lng: prev!.lng!, title: prevTitle },
+                          { lat: act.lat!, lng: act.lng!, title: act.title }
+                        )}
+                        className="flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-medium ml-10 mb-1 bg-transparent border-none cursor-pointer"
+                      >
                         <Navigation className="w-3 h-3" /> 🗺️ 길찾기 (이전 장소 → {act.title})
-                      </a>
+                      </button>
                     )}
                     <ActivityRow
                       activity={act}
@@ -571,6 +578,8 @@ export function ScheduleEditor({
   onActiveDayChange,
   onDataChange,
   onActivitySelect,
+  onNavigationRequest,
+  mapToggle,
 }: {
   schedule: ScheduleData;
   onBack: () => void;
@@ -578,6 +587,8 @@ export function ScheduleEditor({
   onActiveDayChange?: (dayNum: number | null) => void;
   onDataChange?: (data: ScheduleData) => void;
   onActivitySelect?: (activityId: string) => void;
+  onNavigationRequest?: (from: { lat: number; lng: number; title: string }, to: { lat: number; lng: number; title: string }) => void;
+  mapToggle?: React.ReactNode;
 }) {
   const [data, setData] = useState<ScheduleData>(schedule);
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set(data.days.map(d => d.id)));
@@ -690,6 +701,7 @@ export function ScheduleEditor({
           <Button size="sm" className="rounded-xl gap-1.5 text-xs" onClick={handleSave}>
             <Save className="w-3.5 h-3.5" /> {saved ? '저장됨 ✓' : '저장'}
           </Button>
+          {mapToggle}
           {data.status !== 'confirmed' && (
             <Button size="sm" variant="outline" className="rounded-xl gap-1.5 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50" onClick={handleConfirm}>
               <CheckCircle2 className="w-3.5 h-3.5" /> 계획 확정
@@ -741,6 +753,7 @@ export function ScheduleEditor({
             destination={data.destination}
             prevDayAccommodation={idx > 0 ? data.days[idx - 1].accommodation : undefined}
             onActivitySelect={onActivitySelect}
+            onNavigationRequest={onNavigationRequest}
           />
         ))}
       </div>
