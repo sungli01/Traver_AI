@@ -6,7 +6,6 @@ import {
   Calendar,
   ShieldCheck,
   ArrowRight,
-  LayoutDashboard,
   Bot,
   Plane
 } from 'lucide-react';
@@ -15,8 +14,6 @@ import { sampleAgents, sampleTrips } from '@/data/index';
 import { TripGrid } from '@/components/TripCards';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { IMAGES } from '@/assets/images';
 import { Link } from 'react-router-dom';
 
@@ -145,51 +142,6 @@ export default function Dashboard() {
           </Card>
         </motion.div>
       </motion.div>
-
-      {/* Agents Section - Compact Icon Bar */}
-      <motion.section 
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        className="space-y-4"
-      >
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 shrink-0">
-            <LayoutDashboard className="w-5 h-5 text-primary" />
-            <h2 className="text-lg sm:text-2xl font-bold whitespace-nowrap">나의 AI 에이전트</h2>
-          </div>
-          <div className="flex items-center gap-4 overflow-x-auto">
-            <div className="flex items-center gap-2 shrink-0">
-              {sampleAgents.map(agent => {
-                const statusColor = 
-                  agent.status === 'working' || agent.status === 'success' || agent.status === 'secured' || agent.status === 'verifying'
-                    ? 'bg-emerald-500'
-                    : agent.status === 'idle'
-                    ? 'bg-yellow-500'
-                    : 'bg-red-500';
-                return (
-                  <Tooltip key={agent.id}>
-                    <TooltipTrigger asChild>
-                      <div className="relative cursor-pointer">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={agent.avatar} />
-                        </Avatar>
-                        <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background ${statusColor}`} />
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>{agent.name}: {agent.currentTask?.description || agent.status}</TooltipContent>
-                  </Tooltip>
-                );
-              })}
-            </div>
-            <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-primary">
-              <Link to={ROUTE_PATHS.AGENTS}>
-                에이전트 설정 <ArrowRight className="w-4 h-4 ml-1" />
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </motion.section>
 
       {/* Upcoming Trips Section */}
       <motion.section 

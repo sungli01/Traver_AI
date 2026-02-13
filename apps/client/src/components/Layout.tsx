@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Bot, 
@@ -32,22 +32,95 @@ const NAV_ITEMS = [
   { name: '결제 관리', path: ROUTE_PATHS.PAYMENT, icon: CreditCard },
   { name: '보안 센터', path: ROUTE_PATHS.SECURITY, icon: Shield },
   { name: '블록체인', path: ROUTE_PATHS.BLOCKCHAIN, icon: Blocks },
-  { name: 'AI 에이전트', path: ROUTE_PATHS.AGENTS, icon: Bot },
 ];
+
+const SIDEBAR_AGENTS = [
+  { id: 'planner', emoji: '📋', name: '일정 플래너' },
+  { id: 'research', emoji: '🔍', name: '예약 에이전트' },
+  { id: 'concierge', emoji: '💬', name: '컨시어지' },
+  { id: 'security', emoji: '🛡️', name: '보안 에이전트' },
+  { id: 'payment', emoji: '💳', name: '결제 에이전트' },
+  { id: 'blockchain', emoji: '🔗', name: '블록체인' },
+];
+
+function SidebarAgentGrid({ isOpen, activeAgents }: { isOpen: boolean; activeAgents: string[] }) {
+  const navigate = useNavigate();
+  
+  if (!isOpen) {
+    return (
+      <div className="px-2 py-3 border-t border-sidebar-border">
+        <button
+          onClick={() => navigate(ROUTE_PATHS.AGENTS)}
+          className="w-full flex justify-center p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
+          title="AI 에이전트"
+        >
+          <Bot className="h-5 w-5 text-sidebar-foreground/60" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 py-3 border-t border-sidebar-border">
+      <button
+        onClick={() => navigate(ROUTE_PATHS.AGENTS)}
+        className="text-[11px] font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-3 hover:text-primary transition-colors cursor-pointer"
+      >
+        AI 에이전트
+      </button>
+      <div className="grid grid-cols-3 gap-2">
+        {SIDEBAR_AGENTS.map((agent) => {
+          const isActive = activeAgents.includes(agent.id);
+          return (
+            <button
+              key={agent.id}
+              onClick={() => navigate(ROUTE_PATHS.AGENTS)}
+              className="flex flex-col items-center gap-0.5 cursor-pointer group"
+            >
+              <div className={`agent-icon-wrapper ${isActive ? 'active' : ''}`}>
+                <span className="text-lg leading-none">{agent.emoji}</span>
+              </div>
+              <span className={`agent-label ${isActive ? 'active' : ''} group-hover:opacity-100`}>
+                {agent.name}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function Layout({ children }: LayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeAgents, setActiveAgents] = useState<string[]>([]);
   const location = useLocation();
 
   const getPageTitle = () => {
     const currentItem = NAV_ITEMS.find(item => item.path === location.pathname);
-    return currentItem ? currentItem.name : '대시보드';
+    if (currentItem) return currentItem.name;
+    if (location.pathname === ROUTE_PATHS.AGENTS) return 'AI 에이전트';
+    return '대시보드';
   };
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
+
+  // Listen for agent status events from chat
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.active) {
+        setActiveAgents(detail.agents || []);
+      } else {
+        setActiveAgents(prev => prev.filter(a => !(detail.agents || []).includes(a)));
+      }
+    };
+    window.addEventListener('agent-status', handler);
+    return () => window.removeEventListener('agent-status', handler);
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-background font-sans">
@@ -88,6 +161,10 @@ export function Layout({ children }: LayoutProps) {
             </NavLink>
           ))}
         </nav>
+
+        <div className="mt-auto">
+          <SidebarAgentGrid isOpen={isSidebarOpen} activeAgents={activeAgents} />
+        </div>
 
         <div className="p-4 border-t border-sidebar-border">
           <div className={`flex items-center gap-3 ${isSidebarOpen ? 'px-2' : 'justify-center'}`}>
