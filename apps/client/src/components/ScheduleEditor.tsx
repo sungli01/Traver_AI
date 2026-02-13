@@ -201,7 +201,7 @@ function PriceCheckModal({ activity, destination, onClose }: { activity: Editabl
 
 function ActivityRow({
   activity, index, total, onUpdate, onDelete, onMove, destination,
-  isChatOpen, onChatToggle,
+  isChatOpen, onChatToggle, onActivitySelect,
 }: {
   activity: EditableActivity;
   index: number;
@@ -213,6 +213,7 @@ function ActivityRow({
   prevActivity?: EditableActivity;
   isChatOpen?: boolean;
   onChatToggle?: () => void;
+  onActivitySelect?: (id: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [showPriceCheck, setShowPriceCheck] = useState(false);
@@ -223,7 +224,11 @@ function ActivityRow({
     return (
       <div className="flex gap-3 items-start group">
         <div className="flex flex-col items-center">
-          <div className={`w-8 h-8 rounded-full ${cfg.bg} text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm`}>
+          <div
+            className={`w-8 h-8 rounded-full ${cfg.bg} text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm cursor-pointer hover:scale-110 hover:ring-2 hover:ring-yellow-400 transition-all`}
+            onClick={(e) => { e.stopPropagation(); onActivitySelect?.(activity.id); }}
+            title="지도에서 보기"
+          >
             {index + 1}
           </div>
           {index < total - 1 && <div className="w-px flex-1 bg-gray-200 mt-1 min-h-[8px]" />}
@@ -386,7 +391,7 @@ function AddActivityForm({ onAdd, onCancel }: { onAdd: (a: EditableActivity) => 
 
 /* ── Day Accordion ── */
 function DayAccordion({
-  day, isExpanded, onToggle, onUpdate, onDelete, destination, prevDayAccommodation,
+  day, isExpanded, onToggle, onUpdate, onDelete, destination, prevDayAccommodation, onActivitySelect,
 }: {
   day: EditableDay;
   isExpanded: boolean;
@@ -395,6 +400,7 @@ function DayAccordion({
   onDelete: () => void;
   destination?: string;
   prevDayAccommodation?: EditableAccommodation & { lat?: number; lng?: number };
+  onActivitySelect?: (id: string) => void;
 }) {
   const [addingActivity, setAddingActivity] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -504,6 +510,7 @@ function DayAccordion({
                       destination={destination}
                       isChatOpen={activeChatActivityId === act.id}
                       onChatToggle={() => setActiveChatActivityId(prev => prev === act.id ? null : act.id)}
+                      onActivitySelect={onActivitySelect}
                     />
                   </div>
                 );
@@ -562,12 +569,14 @@ export function ScheduleEditor({
   onRequestAIEdit,
   onActiveDayChange,
   onDataChange,
+  onActivitySelect,
 }: {
   schedule: ScheduleData;
   onBack: () => void;
   onRequestAIEdit?: (schedule: ScheduleData) => void;
   onActiveDayChange?: (dayNum: number | null) => void;
   onDataChange?: (data: ScheduleData) => void;
+  onActivitySelect?: (activityId: string) => void;
 }) {
   const [data, setData] = useState<ScheduleData>(schedule);
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set(data.days.map(d => d.id)));
@@ -729,6 +738,7 @@ export function ScheduleEditor({
             onDelete={() => setDeleteDayTarget(day.id)}
             destination={data.destination}
             prevDayAccommodation={idx > 0 ? data.days[idx - 1].accommodation : undefined}
+            onActivitySelect={onActivitySelect}
           />
         ))}
       </div>

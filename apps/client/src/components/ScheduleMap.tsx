@@ -7,7 +7,14 @@ interface ScheduleMapProps {
   scheduleData: ScheduleData;
   activeDay?: number;
   className?: string;
+  selectedActivityId?: string | null;
 }
+
+const getTileUrl = (destination: string) => {
+  if (/일본|도쿄|오사카|교토|후쿠오카|삿포로|나고야|요코하마|고베|나라|하코네|오키나와|Tokyo|Osaka|Kyoto|Japan/.test(destination))
+    return 'https://{s}.tile.openstreetmap.jp/{z}/{x}/{y}.png';
+  return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+};
 
 const categoryColors: Record<string, string> = {
   transport: '#3b82f6',
@@ -28,9 +35,10 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export function ScheduleMap({ scheduleData, activeDay, className = '' }: ScheduleMapProps) {
+export function ScheduleMap({ scheduleData, activeDay, className = '', selectedActivityId }: ScheduleMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const markersRef = useRef<Map<string, L.Marker>>(new Map());
 
   // Compute distances per day
   const dayDistances = useMemo(() => {
@@ -60,10 +68,12 @@ export function ScheduleMap({ scheduleData, activeDay, className = '' }: Schedul
     const map = L.map(mapRef.current, { zoomControl: true, scrollWheelZoom: true });
     mapInstanceRef.current = map;
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer(getTileUrl(scheduleData.destination || ''), {
       attribution: '© OpenStreetMap',
       maxZoom: 18,
     }).addTo(map);
+
+    markersRef.current.clear();
 
     const bounds = L.latLngBounds([]);
     let hasMarkers = false;
@@ -82,25 +92,27 @@ export function ScheduleMap({ scheduleData, activeDay, className = '' }: Schedul
         hasMarkers = true;
 
         const opacity = isInactive ? 0.35 : 1;
-        const size = isActive ? 32 : 28;
+        const isSelected = selectedActivityId === act.id;
+        const size = isSelected ? 38 : isActive ? 32 : 28;
 
         const markerIcon = L.divIcon({
           className: 'custom-marker',
           html: `<div style="
             width:${size}px;height:${size}px;border-radius:50%;
             background:${categoryColors[act.category] || color};
-            color:white;font-size:${isActive ? 13 : 11}px;font-weight:700;
+            color:white;font-size:${isSelected ? 15 : isActive ? 13 : 11}px;font-weight:700;
             display:flex;align-items:center;justify-content:center;
-            border:${isActive ? '3px' : '2px'} solid white;
-            box-shadow:0 2px 6px rgba(0,0,0,${isActive ? 0.5 : 0.3});
+            border:${isSelected ? '4px solid #fbbf24' : isActive ? '3px solid white' : '2px solid white'};
+            box-shadow:0 ${isSelected ? '4px 12px' : '2px 6px'} rgba(0,0,0,${isSelected ? 0.6 : isActive ? 0.5 : 0.3});
             opacity:${opacity};
-            ${isActive ? 'transform:scale(1.1);' : ''}
-          ">${idx + 1}</div>`,
+            ${isSelected ? 'transform:scale(1.2);animation:bounce 0.6s ease;z-index:9999;' : isActive ? 'transform:scale(1.1);' : ''}
+          ">${idx + 1}</div>
+          ${isSelected ? '<style>@keyframes bounce{0%,100%{transform:scale(1.2)}50%{transform:scale(1.5)}}</style>' : ''}`,
           iconSize: [size, size],
           iconAnchor: [size / 2, size / 2],
         });
 
-        L.marker(latlng, { icon: markerIcon })
+        const marker = L.marker(latlng, { icon: markerIcon, zIndexOffset: isSelected ? 1000 : 0 })
           .addTo(map)
           .bindPopup(`
             <div style="font-family:sans-serif;min-width:140px;">
@@ -111,6 +123,15 @@ export function ScheduleMap({ scheduleData, activeDay, className = '' }: Schedul
               ${act.cost ? `<div style="font-size:11px;font-weight:600;margin-top:2px;">${act.cost}</div>` : ''}
             </div>
           `);
+
+        markersRef.current.set(act.id, marker);
+
+        if (isSelected) {
+          setTimeout(() => {
+            map.flyTo(latlng as L.LatLngExpression, Math.max(map.getZoom(), 15), { duration: 0.8 });
+            marker.openPopup();
+          }, 100);
+        }
       });
 
       if (coords.length > 1) {
@@ -145,7 +166,7 @@ export function ScheduleMap({ scheduleData, activeDay, className = '' }: Schedul
         mapInstanceRef.current = null;
       }
     };
-  }, [scheduleData, activeDay]);
+  }, [scheduleData, activeDay, selectedActivityId]);
 
   return (
     <div className={`flex flex-col h-full ${className}`}>

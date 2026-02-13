@@ -214,6 +214,14 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
   const [activeDay, setActiveDay] = useState<number | null>(null);
   const [liveScheduleData, setLiveScheduleData] = useState<ScheduleData | null>(scheduleData);
   const [scheduleMobileTab, setScheduleMobileTab] = useState<'editor' | 'map'>('editor');
+  const [showMap, setShowMap] = useState(false);
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
+
+  const handleActivitySelect = useCallback((activityId: string) => {
+    setSelectedActivityId(activityId);
+    if (!showMap) setShowMap(true);
+    setScheduleMobileTab('map');
+  }, [showMap]);
 
   // Sync liveScheduleData when scheduleData changes externally
   useEffect(() => {
@@ -225,12 +233,25 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
     const mapData = liveScheduleData || scheduleData;
     return (
       <div className="flex flex-col h-full">
-        {/* Top bar */}
+        {/* Top bar with map toggle */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm shrink-0">
           <button onClick={() => setScheduleMode(false)} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors font-medium">
             <ArrowLeft className="w-4 h-4" /> 여행 목록으로
           </button>
-          <span className="text-sm font-semibold text-muted-foreground">📋 스케줄 노트 편집 중</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-muted-foreground hidden sm:inline">📋 스케줄 노트 편집 중</span>
+            <button
+              onClick={() => setShowMap(v => !v)}
+              className={`hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                showMap
+                  ? 'bg-primary text-primary-foreground shadow-md'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              <MapIcon className="w-4 h-4" />
+              📍 지도 {showMap ? '닫기' : '보기'}
+            </button>
+          </div>
         </div>
 
         {/* Mobile tabs */}
@@ -251,20 +272,23 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
 
         {/* Content */}
         <div className="flex-1 min-h-0 flex">
-          {/* Desktop: side by side */}
+          {/* Desktop layout */}
           <div className="hidden lg:flex flex-1">
-            <div className="w-[45%] min-w-[320px] border-r border-border overflow-y-auto p-4">
+            <div className="min-w-[320px] border-r border-border overflow-y-auto p-4 transition-all duration-300" style={{ width: showMap ? '45%' : '100%' }}>
               <ScheduleEditor
                 schedule={scheduleData}
                 onBack={() => setScheduleMode(false)}
                 onRequestAIEdit={handleAIEditRequest}
                 onActiveDayChange={setActiveDay}
                 onDataChange={setLiveScheduleData}
+                onActivitySelect={handleActivitySelect}
               />
             </div>
-            <div className="w-[55%]">
-              <ScheduleMap scheduleData={mapData} activeDay={activeDay ?? undefined} />
-            </div>
+            {showMap && (
+              <div className="w-[55%] animate-in slide-in-from-right duration-300">
+                <ScheduleMap scheduleData={mapData} activeDay={activeDay ?? undefined} selectedActivityId={selectedActivityId} />
+              </div>
+            )}
           </div>
           {/* Mobile: tab switch */}
           <div className="lg:hidden flex-1">
@@ -276,10 +300,11 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
                   onRequestAIEdit={handleAIEditRequest}
                   onActiveDayChange={setActiveDay}
                   onDataChange={setLiveScheduleData}
+                  onActivitySelect={handleActivitySelect}
                 />
               </div>
             ) : (
-              <ScheduleMap scheduleData={mapData} activeDay={activeDay ?? undefined} className="h-full" />
+              <ScheduleMap scheduleData={mapData} activeDay={activeDay ?? undefined} className="h-full" selectedActivityId={selectedActivityId} />
             )}
           </div>
         </div>

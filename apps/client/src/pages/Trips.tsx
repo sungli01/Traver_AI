@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus,
   Search,
@@ -50,9 +50,34 @@ function ScheduleEditorWithMap({ schedule, onBack, onRequestAIEdit }: {
   const [activeDay, setActiveDay] = useState<number | null>(null);
   const [liveData, setLiveData] = useState<ScheduleData>(schedule);
   const [mobileTab, setMobileTab] = useState<'editor' | 'map'>('editor');
+  const [showMap, setShowMap] = useState(false);
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
+
+  const handleActivitySelect = useCallback((activityId: string) => {
+    setSelectedActivityId(activityId);
+    if (!showMap) setShowMap(true);
+    // On mobile, switch to map tab
+    setMobileTab('map');
+  }, [showMap]);
 
   return (
     <div className="w-full h-[calc(100vh-4rem)] -mt-4 -mb-12 flex flex-col">
+      {/* Map toggle button - Desktop */}
+      <div className="hidden lg:flex items-center shrink-0 px-4 py-2 border-b border-border bg-background/80 backdrop-blur-sm">
+        <motion.button
+          onClick={() => setShowMap(v => !v)}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+            showMap
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+          }`}
+          whileTap={{ scale: 0.95 }}
+        >
+          <MapIcon className="w-4 h-4" />
+          📍 지도 {showMap ? '닫기' : '보기'}
+        </motion.button>
+      </div>
+
       {/* Mobile tabs */}
       <div className="flex lg:hidden border-b border-border shrink-0">
         <button
@@ -70,20 +95,39 @@ function ScheduleEditorWithMap({ schedule, onBack, onRequestAIEdit }: {
       </div>
 
       <div className="flex-1 min-h-0 flex">
-        {/* Desktop: side by side */}
+        {/* Desktop layout */}
         <div className="hidden lg:flex flex-1">
-          <div className="w-[45%] min-w-[320px] border-r border-border overflow-y-auto p-4">
+          <motion.div
+            className="min-w-[320px] border-r border-border overflow-y-auto p-4"
+            animate={{ width: showMap ? '45%' : '100%' }}
+            transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+          >
             <ScheduleEditor
               schedule={schedule}
               onBack={onBack}
               onRequestAIEdit={onRequestAIEdit}
               onActiveDayChange={setActiveDay}
               onDataChange={setLiveData}
+              onActivitySelect={handleActivitySelect}
             />
-          </div>
-          <div className="w-[55%]">
-            <ScheduleMap scheduleData={liveData} activeDay={activeDay ?? undefined} />
-          </div>
+          </motion.div>
+          <AnimatePresence>
+            {showMap && (
+              <motion.div
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: '55%', opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+                className="overflow-hidden"
+              >
+                <ScheduleMap
+                  scheduleData={liveData}
+                  activeDay={activeDay ?? undefined}
+                  selectedActivityId={selectedActivityId}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
         {/* Mobile: tab switch */}
         <div className="lg:hidden flex-1">
@@ -95,10 +139,16 @@ function ScheduleEditorWithMap({ schedule, onBack, onRequestAIEdit }: {
                 onRequestAIEdit={onRequestAIEdit}
                 onActiveDayChange={setActiveDay}
                 onDataChange={setLiveData}
+                onActivitySelect={handleActivitySelect}
               />
             </div>
           ) : (
-            <ScheduleMap scheduleData={liveData} activeDay={activeDay ?? undefined} className="h-full" />
+            <ScheduleMap
+              scheduleData={liveData}
+              activeDay={activeDay ?? undefined}
+              className="h-full"
+              selectedActivityId={selectedActivityId}
+            />
           )}
         </div>
       </div>
