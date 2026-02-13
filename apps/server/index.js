@@ -422,6 +422,111 @@ app.get('/api/admin/sessions', (req, res) => {
   res.json({ activeSessions: sessionGoals.size });
 });
 
+// ─── Admin Stats Endpoints ───
+app.get('/api/admin/stats/daily', async (req, res) => {
+  try {
+    const signups = await db.query(`
+      SELECT DATE(created_at) as date, COUNT(*) as count
+      FROM users
+      WHERE created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY DATE(created_at) ORDER BY date
+    `);
+    const chats = await db.query(`
+      SELECT DATE(created_at) as date, COUNT(*) as count
+      FROM chat_logs
+      WHERE created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY DATE(created_at) ORDER BY date
+    `);
+    res.json({ signups: signups.rows, chats: chats.rows });
+  } catch (err) {
+    console.error('[Admin] daily stats error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/stats/destinations', async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT destination_city as city, COUNT(*) as count
+      FROM chat_logs
+      WHERE destination_city IS NOT NULL AND destination_city != ''
+      GROUP BY destination_city ORDER BY count DESC LIMIT 10
+    `);
+    res.json({ destinations: result.rows });
+  } catch (err) {
+    console.error('[Admin] destinations error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/stats/revenue', async (req, res) => {
+  try {
+    const userCount = await db.query('SELECT COUNT(*) as count FROM users');
+    const total = parseInt(userCount.rows[0].count) || 0;
+    // Mock revenue data based on user count
+    const proSubscribers = Math.floor(total * 0.12);
+    const bizSubscribers = Math.floor(total * 0.03);
+    const mrr = proSubscribers * 9900 + bizSubscribers * 29900;
+    const conversionRate = total > 0 ? ((proSubscribers + bizSubscribers) / total * 100).toFixed(1) : 0;
+    res.json({ totalUsers: total, proSubscribers, bizSubscribers, mrr, conversionRate });
+  } catch (err) {
+    console.error('[Admin] revenue error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/stats/funnel', async (req, res) => {
+  try {
+    const [signups, firstChat, itinerary, confirmed, revisit] = await Promise.all([
+      db.query("SELECT COUNT(*) as count FROM users"),
+      db.query("SELECT COUNT(DISTINCT user_id) as count FROM user_activity WHERE action = 'first_chat'"),
+      db.query("SELECT COUNT(DISTINCT user_id) as count FROM user_activity WHERE action = 'itinerary_created'"),
+      db.query("SELECT COUNT(DISTINCT user_id) as count FROM user_activity WHERE action = 'trip_confirmed'"),
+      db.query("SELECT COUNT(DISTINCT user_id) as count FROM user_activity WHERE action = 'revisit'"),
+    ]);
+    res.json({
+      funnel: [
+        { stage: '가입', count: parseInt(signups.rows[0].count) },
+        { stage: '첫 상담', count: parseInt(firstChat.rows[0].count) },
+        { stage: '일정 생성', count: parseInt(itinerary.rows[0].count) },
+        { stage: '확정', count: parseInt(confirmed.rows[0].count) },
+        { stage: '재방문', count: parseInt(revisit.rows[0].count) },
+      ]
+    });
+  } catch (err) {
+    console.error('[Admin] funnel error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/stats/activity', async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT EXTRACT(HOUR FROM created_at)::int as hour, EXTRACT(DOW FROM created_at)::int as dow, COUNT(*) as count
+      FROM user_activity
+      WHERE created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY hour, dow ORDER BY dow, hour
+    `);
+    res.json({ activity: result.rows });
+  } catch (err) {
+    console.error('[Admin] activity error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Event Tracking ───
+app.post('/api/track-event', async (req, res) => {
+  try {
+    const { userId, action } = req.body;
+    if (!action) return res.status(400).json({ error: 'action required' });
+    await db.query('INSERT INTO user_activity (user_id, action, created_at) VALUES ($1, $2, NOW())', [userId || null, action]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Track] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Price Tracking Endpoints ───
 app.post('/api/price-track/start', async (req, res) => {
   try {
@@ -552,6 +657,58 @@ async function initDB() {
         )
       `);
       console.log('[DB] price_history & purchase_requests tables ready');
+
+      // chat_logs & user_activity tables
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS chat_logs (
+          id SERIAL PRIMARY KEY,
+          session_id TEXT,
+          user_id INTEGER REFERENCES users(id),
+          message TEXT,
+          destination_city TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS user_activity (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER,
+          action TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      console.log('[DB] chat_logs & user_activity tables ready');
+
+      // Seed demo data if tables are empty
+      const chatCount = await db.query('SELECT COUNT(*) as c FROM chat_logs');
+      if (parseInt(chatCount.rows[0].c) === 0) {
+        console.log('[DB] Seeding demo data...');
+        const cities = ['도쿄', '오사카', '방콕', '다낭', '파리', '런던', '제주', '서울', '타이베이', '싱가포르', '하노이', '발리'];
+        const actions = ['first_chat', 'itinerary_created', 'trip_confirmed', 'share_used', 'revisit'];
+        const inserts = [];
+        for (let d = 29; d >= 0; d--) {
+          const numChats = Math.floor(Math.random() * 8) + 2;
+          for (let i = 0; i < numChats; i++) {
+            const hour = Math.floor(Math.random() * 24);
+            const city = cities[Math.floor(Math.random() * cities.length)];
+            inserts.push(db.query(
+              `INSERT INTO chat_logs (session_id, message, destination_city, created_at) VALUES ($1, $2, $3, NOW() - INTERVAL '${d} days' + INTERVAL '${hour} hours')`,
+              ['sess_' + Math.random().toString(36).slice(2, 8), city + ' 여행 추천해주세요', city]
+            ));
+          }
+          const numActs = Math.floor(Math.random() * 6) + 1;
+          for (let i = 0; i < numActs; i++) {
+            const hour = Math.floor(Math.random() * 24);
+            const action = actions[Math.floor(Math.random() * actions.length)];
+            inserts.push(db.query(
+              `INSERT INTO user_activity (action, created_at) VALUES ($1, NOW() - INTERVAL '${d} days' + INTERVAL '${hour} hours')`,
+              [action]
+            ));
+          }
+        }
+        await Promise.all(inserts);
+        console.log('[DB] Demo data seeded');
+      }
     } catch (err) {
       console.error('[DB] table creation error:', err.message);
     }

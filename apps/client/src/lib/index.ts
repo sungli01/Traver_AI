@@ -9,6 +9,7 @@ export const ROUTE_PATHS = {
   LOGIN: '/login',
   REGISTER: '/register',
   ADMIN: '/admin',
+  PRICING: '/pricing',
 } as const;
 
 // 멀티에이전트 시스템 타입
