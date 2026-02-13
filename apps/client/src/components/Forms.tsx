@@ -44,6 +44,7 @@ const tripSchema = z.object({
   }),
   budget: z.coerce.number().min(1000, '최소 예산은 1,000원 이상입니다.'),
   travelStyle: z.enum(['luxury', 'budget', 'adventure', 'business']),
+  additionalInfo: z.string().optional(),
 });
 
 // 도시 목록 (국가별 분류)
@@ -119,6 +120,7 @@ export function NewTripForm({ onSubmit }: { onSubmit: (data: z.infer<typeof trip
       destination: '',
       budget: 0,
       travelStyle: 'adventure',
+      additionalInfo: '',
     },
   });
 
@@ -348,6 +350,28 @@ export function NewTripForm({ onSubmit }: { onSubmit: (data: z.infer<typeof trip
             )}
           />
         </div>
+
+        {/* 추가 정보 (자연어 입력) */}
+        <FormField
+          control={form.control}
+          name="additionalInfo"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>추가 요청사항</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder={`자유롭게 작성해주세요. 예시:\n• 여행 목표: 가족과 힐링 여행, 맛집 탐방 위주\n• 인원: 성인 2명 + 아이 1명 (5세)\n• 참고사항: 해산물 알레르기, 유모차 이동 가능한 곳\n• 꼭 가고 싶은 곳: 팀랩, 츠키지 시장\n• 숙소: 역 근처 선호, 온천 포함`}
+                  className="min-h-[140px] bg-background/50 text-sm leading-relaxed resize-y"
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription className="text-xs">
+                여행 목표, 인원, 참고사항, 선호도 등을 자유롭게 입력하면 AI가 맞춤 일정을 설계합니다.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <Button type="submit" className="w-full h-12 text-lg font-semibold bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">
           <Plane className="w-5 h-5 mr-2" />

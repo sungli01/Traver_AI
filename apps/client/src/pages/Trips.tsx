@@ -82,7 +82,10 @@ export default function Trips() {
     const styleMap: Record<string, string> = { luxury: '럭셔리', budget: '가성비', adventure: '모험', business: '비즈니스' };
     const style = styleMap[data.travelStyle] || data.travelStyle;
     
-    const chatMessage = `${data.destination} 여행 계획해줘. 제목: ${data.title}, 기간: ${startStr} ~ ${endStr}, 예산: ${budget}, 스타일: ${style}`;
+    let chatMessage = `${data.destination} 여행 계획해줘. 제목: ${data.title}, 기간: ${startStr} ~ ${endStr}, 예산: ${budget}, 스타일: ${style}`;
+    if (data.additionalInfo?.trim()) {
+      chatMessage += `\n\n추가 요청사항:\n${data.additionalInfo.trim()}`;
+    }
     
     // 커스텀 이벤트로 채팅 윈도우에 메시지 전달
     window.dispatchEvent(new CustomEvent('travel-chat-send', { detail: chatMessage }));
