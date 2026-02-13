@@ -8,6 +8,7 @@ import {
   Navigation, Loader2, Lightbulb, BotMessageSquare
 } from 'lucide-react';
 import { ActivityChatPanel } from '@/components/ActivityChatPanel';
+import { ShareButton } from '@/components/ShareButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -685,6 +686,7 @@ export function ScheduleEditor({
               <MessageSquare className="w-3.5 h-3.5" /> AI에게 수정 요청
             </Button>
           )}
+          <ShareButton schedule={data} />
           <Button size="sm" className="rounded-xl gap-1.5 text-xs" onClick={handleSave}>
             <Save className="w-3.5 h-3.5" /> {saved ? '저장됨 ✓' : '저장'}
           </Button>

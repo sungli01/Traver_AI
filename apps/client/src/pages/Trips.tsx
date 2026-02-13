@@ -19,6 +19,7 @@ import { TripGrid } from '@/components/TripCards';
 import { NewTripForm } from '@/components/Forms';
 import { FullScreenChat } from '@/components/FullScreenChat';
 import { ScheduleEditor, loadSavedTrips, saveTrip, type ScheduleData } from '@/components/ScheduleEditor';
+import { ShareButton } from '@/components/ShareButton';
 import { ScheduleMap } from '@/components/ScheduleMap';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -423,9 +424,14 @@ export default function Trips() {
                       <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {trip.period}</span>
                       <span className="flex items-center gap-1"><Wallet className="w-3 h-3" /> {trip.totalBudget}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {trip.days.length}일 · {trip.days.reduce((s, d) => s + d.activities.length, 0)}개 장소
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground">
+                        {trip.days.length}일 · {trip.days.reduce((s, d) => s + d.activities.length, 0)}개 장소
+                      </p>
+                      <div onClick={e => e.stopPropagation()}>
+                        <ShareButton schedule={trip} compact />
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </motion.div>
