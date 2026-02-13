@@ -115,6 +115,22 @@ async function buildContext(city, country, budget, days) {
     }
   }
 
+  // 환율 정보 추가
+  try {
+    const ratesResult = await db.query('SELECT currency, rate_per_krw, updated_at FROM exchange_rates');
+    if (ratesResult.rows.length > 0) {
+      ctx += `\n### 💱 현재 환율\n`;
+      for (const r of ratesResult.rows) {
+        const krwPerUnit = r.rate_per_krw > 0 ? (1 / r.rate_per_krw).toFixed(2) : '?';
+        ctx += `- 1 ${r.currency} = ${krwPerUnit} KRW\n`;
+      }
+      const updated = ratesResult.rows[0].updated_at;
+      if (updated) ctx += `> 환율 기준: ${new Date(updated).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}\n`;
+    }
+  } catch (err) {
+    // exchange_rates 테이블 없어도 무시
+  }
+
   ctx += `\n> 위 데이터는 Knowledge DB에서 조회한 실제 검증된 정보입니다. 이 데이터를 우선적으로 활용하여 일정을 구성하세요.\n`;
   return ctx;
 }

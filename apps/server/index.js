@@ -4,6 +4,7 @@ const { processAgentRequest, processAgentRequestWithKnowledge } = require('./age
 const db = require('./db');
 const retriever = require('./retriever');
 const collector = require('./collector');
+const scheduler = require('./scheduler');
 require('dotenv').config();
 
 const app = express();
@@ -94,4 +95,5 @@ db.testConnection().then(ok => {
 
 app.listen(PORT, () => {
   console.log(`SVI Backend running on port ${PORT}`);
+  scheduler.start();
 });
