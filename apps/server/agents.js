@@ -7,7 +7,9 @@ const anthropic = new Anthropic({
 
 // Knowledge DB integration
 let retriever = null;
+let priceVerifier = null;
 try { retriever = require('./retriever'); } catch (e) { /* DB not available */ }
+try { priceVerifier = require('./price-verifier'); } catch (e) { /* price verifier not available */ }
 
 /**
  * Concierge Agent: 사용자의 요청을 분석하고 적절한 에이전트에게 전달
@@ -135,6 +137,13 @@ async function processAgentRequest(message, context = [], options = {}) {
 - activity: 액티비티/체험
 - rest: 휴식/자유시간
 
+## 검증된 데이터 사용 규칙 (최우선)
+- 메시지에 [검증된 장소 데이터]가 포함되어 있으면, 해당 데이터의 **입장료, 가격, 좌표, 주소, 운영시간을 반드시 그대로 사용**하라.
+- 검증된 데이터에 없는 가격을 절대 만들어내지 마라. 데이터에 "₩8,000"이라고 되어 있으면 cost에 "8,000원"을 사용하라.
+- 검증된 데이터의 좌표(lat, lng)를 그대로 사용하라.
+- 매 요청마다 **다른 조합과 순서**의 코스를 추천하라. 동일한 도시라도 매번 새로운 일정을 구성하라.
+- 검증 데이터에 있는 장소를 우선 활용하되, 필요시 추가 장소를 포함할 수 있다. 단 추가 장소의 가격은 "미확인"으로 표기하라.
+
 ## 필수 사항
 1. 각 활동에 예상 비용(cost) 반드시 포함 (한국 원화 기준)
 8. 각 활동에 lat, lng (위도, 경도) 반드시 포함 — 지도 표시용. 정확한 좌표를 사용하라.
@@ -259,6 +268,8 @@ function extractCityFromMessage(message) {
     /(?:비엔나|vienna)/i, /(?:암스테르담|amsterdam)/i, /(?:라오스|luang\s?prabang)/i,
     /(?:시드니|sydney)/i, /(?:멜버른|melbourne)/i, /(?:제주|jeju)/i,
     /(?:부산|busan)/i, /(?:강릉|gangneung)/i, /(?:여수|yeosu)/i,
+    /(?:순천|suncheon)/i, /(?:경주|gyeongju)/i, /(?:전주|jeonju)/i,
+    /(?:속초|sokcho)/i, /(?:담양)/i, /(?:보성)/i, /(?:광주|gwangju)/i,
   ];
   const cityMap = {
     '도쿄': { city: '도쿄', country: '일본' }, 'tokyo': { city: '도쿄', country: '일본' },
@@ -284,6 +295,14 @@ function extractCityFromMessage(message) {
     '시드니': { city: '시드니', country: '호주' }, 'sydney': { city: '시드니', country: '호주' },
     '제주': { city: '제주', country: '한국' }, 'jeju': { city: '제주', country: '한국' },
     '부산': { city: '부산', country: '한국' }, 'busan': { city: '부산', country: '한국' },
+    '순천': { city: '순천', country: '한국' }, 'suncheon': { city: '순천', country: '한국' },
+    '여수': { city: '여수', country: '한국' }, 'yeosu': { city: '여수', country: '한국' },
+    '강릉': { city: '강릉', country: '한국' }, 'gangneung': { city: '강릉', country: '한국' },
+    '경주': { city: '경주', country: '한국' }, 'gyeongju': { city: '경주', country: '한국' },
+    '전주': { city: '전주', country: '한국' }, 'jeonju': { city: '전주', country: '한국' },
+    '속초': { city: '속초', country: '한국' }, 'sokcho': { city: '속초', country: '한국' },
+    '담양': { city: '담양', country: '한국' }, '보성': { city: '보성', country: '한국' },
+    '광주': { city: '광주', country: '한국' }, 'gwangju': { city: '광주', country: '한국' },
   };
   const lower = message.toLowerCase();
   for (const [key, value] of Object.entries(cityMap)) {
@@ -299,6 +318,14 @@ async function processAgentRequestWithKnowledge(message, context = [], options =
   try {
     const cityInfo = extractCityFromMessage(message);
     if (cityInfo) {
+      // Background price verification (non-blocking)
+      if (priceVerifier) {
+        retriever.getPlacesForCity(cityInfo.city, { country: cityInfo.country }).then(places => {
+          priceVerifier.verifyPrices(cityInfo.city, places).catch(e => 
+            console.error('[PriceVerifier] Background verify error:', e.message));
+        }).catch(() => {});
+      }
+
       const dbContext = await retriever.buildContext(cityInfo.city, cityInfo.country);
       if (dbContext) {
         const enrichedMessage = message + dbContext;
@@ -368,6 +395,12 @@ async function processAgentRequestStream(message, context = [], options = {}, on
 }
 \`\`\`
 
+## 검증된 데이터 사용 규칙 (최우선)
+- 메시지에 [검증된 장소 데이터]가 포함되어 있으면, 해당 데이터의 **입장료, 가격, 좌표, 주소, 운영시간을 반드시 그대로 사용**하라.
+- 검증된 데이터에 없는 가격을 절대 만들어내지 마라.
+- 매 요청마다 **다른 조합과 순서**의 코스를 추천하라.
+- 검증 데이터에 있는 장소를 우선 활용하되, 추가 장소의 가격은 "미확인"으로 표기하라.
+
 ## 출력 주의
 - JSON 출력 시 반드시 완전한 JSON을 출력하라. 중간에 잘리지 않도록 간결하게 작성하라.
 - 일정이 길면 (5일 이상) 각 day의 activities를 핵심 4-5개로 제한하라.
@@ -406,6 +439,14 @@ async function processAgentRequestWithKnowledgeStream(message, context = [], opt
   try {
     const cityInfo = extractCityFromMessage(message);
     if (cityInfo) {
+      // Background price verification (non-blocking)
+      if (priceVerifier) {
+        retriever.getPlacesForCity(cityInfo.city, { country: cityInfo.country }).then(places => {
+          priceVerifier.verifyPrices(cityInfo.city, places).catch(e =>
+            console.error('[PriceVerifier] Background verify error:', e.message));
+        }).catch(() => {});
+      }
+
       const dbContext = await retriever.buildContext(cityInfo.city, cityInfo.country);
       if (dbContext) {
         const enrichedMessage = message + dbContext;
