@@ -266,4 +266,78 @@ async function processAgentRequestWithKnowledge(message, context = [], options =
   return processAgentRequest(message, context, options);
 }
 
-module.exports = { processAgentRequest, processAgentRequestWithKnowledge };
+// Streaming version — yields text deltas via callback
+async function processAgentRequestStream(message, context = [], options = {}, onDelta) {
+  try {
+    let msgType = options.type || 'generate';
+    if (!options.type) {
+      if (message.includes('[기존 일정 컨텍스트]')) {
+        msgType = 'modify';
+      } else if (!/여행|계획|일정|코스|추천/.test(message) && message.length < 100) {
+        msgType = 'chat';
+      }
+    }
+    const maxTokensMap = { chat: 1024, generate: 8192, modify: 4096 };
+    const maxTokens = maxTokensMap[msgType] || 8192;
+
+    const goals = options.goals || [];
+    const goalsSection = goals.length > 0
+      ? `\n\n## 현재 여행 목표 (절대 무시하지 마라 — 모든 일정에 반드시 반영할 것)\n${goals.map(g => `- ${g}`).join('\n')}\n`
+      : '';
+
+    // Use the same system prompt as processAgentRequest
+    const systemPrompt = `당신은 TravelAgent AI의 전문 여행 컨시어지입니다.${goalsSection}
+
+## 핵심 규칙
+사용자가 여행 계획을 요청하면, 반드시 아래 JSON 형식으로만 응답하세요. JSON 외의 텍스트를 포함하지 마세요.
+일반 대화(인사, 질문 등)에는 자연스러운 한국어로 답변하세요.
+일정을 수정할 때는 반드시 JSON 앞에 '📝 변경 요약:' 섹션을 추가하여 어떤 부분이 어떻게 바뀌었는지 간단히 설명한 후 수정된 JSON을 제공하세요.
+
+## 출력 주의
+- JSON 출력 시 반드시 완전한 JSON을 출력하라. 중간에 잘리지 않도록 간결하게 작성하라.
+- 일정이 길면 (5일 이상) 각 day의 activities를 핵심 4-5개로 제한하라.`;
+
+    const stream = await anthropic.messages.stream({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [
+        ...context,
+        { role: "user", content: message }
+      ],
+    });
+
+    let fullText = '';
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+        const text = event.delta.text;
+        fullText += text;
+        onDelta(text);
+      }
+    }
+    return fullText;
+  } catch (error) {
+    console.error("Agent Stream Error:", error);
+    throw error;
+  }
+}
+
+async function processAgentRequestWithKnowledgeStream(message, context = [], options = {}, onDelta) {
+  if (!retriever) return processAgentRequestStream(message, context, options, onDelta);
+
+  try {
+    const cityInfo = extractCityFromMessage(message);
+    if (cityInfo) {
+      const dbContext = await retriever.buildContext(cityInfo.city, cityInfo.country);
+      if (dbContext) {
+        const enrichedMessage = message + dbContext;
+        return processAgentRequestStream(enrichedMessage, context, options, onDelta);
+      }
+    }
+  } catch (err) {
+    console.error('[Knowledge] Context injection error:', err.message);
+  }
+  return processAgentRequestStream(message, context, options, onDelta);
+}
+
+module.exports = { processAgentRequest, processAgentRequestWithKnowledge, processAgentRequestStream, processAgentRequestWithKnowledgeStream };

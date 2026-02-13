@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { processAgentRequest, processAgentRequestWithKnowledge } = require('./agents');
+const { processAgentRequest, processAgentRequestWithKnowledge, processAgentRequestWithKnowledgeStream } = require('./agents');
 const db = require('./db');
 const retriever = require('./retriever');
 const collector = require('./collector');
@@ -86,16 +86,63 @@ app.post('/api/chat', async (req, res) => {
   }
   sessionGoals.set(sid, goals);
 
-  const response = await processAgentRequestWithKnowledge(message, context, { goals });
-  
-  // Extract any new goals from AI response
-  const responseGoals = extractGoals(response);
-  if (responseGoals.length > 0) {
-    const updatedGoals = mergeGoals(goals, responseGoals);
-    sessionGoals.set(sid, updatedGoals);
-  }
+  const wantStream = (req.headers.accept || '').includes('text/event-stream');
 
-  res.json({ reply: response, goals: sessionGoals.get(sid) });
+  if (wantStream) {
+    // SSE streaming response
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    try {
+      const fullText = await processAgentRequestWithKnowledgeStream(message, context, { goals }, (delta) => {
+        res.write(`data: ${JSON.stringify({ type: 'delta', text: delta })}\n\n`);
+      });
+
+      // Extract goals from full response
+      const responseGoals = extractGoals(fullText);
+      if (responseGoals.length > 0) {
+        const updatedGoals = mergeGoals(goals, responseGoals);
+        sessionGoals.set(sid, updatedGoals);
+      }
+
+      res.write(`data: ${JSON.stringify({ type: 'done', reply: fullText, goals: sessionGoals.get(sid) })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+    } catch (err) {
+      console.error('[Chat SSE] error:', err.message);
+      res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+      res.end();
+    }
+  } else {
+    // Non-streaming (legacy)
+    try {
+      const response = await processAgentRequestWithKnowledge(message, context, { goals });
+
+      const responseGoals = extractGoals(response);
+      if (responseGoals.length > 0) {
+        const updatedGoals = mergeGoals(goals, responseGoals);
+        sessionGoals.set(sid, updatedGoals);
+      }
+
+      res.json({ reply: response, goals: sessionGoals.get(sid) });
+    } catch (err) {
+      console.error('[Chat] error:', err.message);
+      res.status(500).json({ error: 'AI 응답 생성 중 오류가 발생했습니다.' });
+    }
+  }
+});
+
+// ─── Exchange Rates ───
+app.get('/api/exchange-rates', async (req, res) => {
+  try {
+    const result = await db.query('SELECT currency, rate_per_krw, updated_at FROM exchange_rates ORDER BY currency');
+    res.json({ rates: result.rows });
+  } catch (err) {
+    console.error('[API] exchange-rates error:', err.message);
+    res.json({ rates: [], error: 'Exchange rates not available' });
+  }
 });
 
 // Knowledge DB API endpoints
@@ -132,21 +179,33 @@ app.get('/api/knowledge/stats', async (req, res) => {
 });
 
 app.post('/api/knowledge/collect', async (req, res) => {
+  const COLLECT_TIMEOUT_MS = 60000;
   try {
     const { city, country, fromCity, toCity } = req.body;
     let result = {};
-    if (city && country) {
-      const saved = await collector.collectPlacesForCity(city, country);
-      result.places = saved;
-    }
-    if (fromCity && toCity) {
-      const saved = await collector.collectRoutes(fromCity, toCity);
-      result.routes = saved;
-    }
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Collection timed out after 60s')), COLLECT_TIMEOUT_MS)
+    );
+
+    const collectWork = async () => {
+      if (city && country) {
+        const saved = await collector.collectPlacesForCity(city, country);
+        result.places = saved;
+      }
+      if (fromCity && toCity) {
+        const saved = await collector.collectRoutes(fromCity, toCity);
+        result.routes = saved;
+      }
+      return result;
+    };
+
+    await Promise.race([collectWork(), timeoutPromise]);
     res.json({ success: true, ...result });
   } catch (err) {
     console.error('[API] collect error:', err.message);
-    res.status(500).json({ error: err.message });
+    const status = err.message.includes('timed out') ? 504 : 500;
+    res.status(status).json({ error: err.message });
   }
 });
 

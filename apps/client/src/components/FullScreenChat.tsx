@@ -126,12 +126,41 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
 
       const response = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
         body: JSON.stringify({ message: messageToSend, context: contextMsgs, type: msgType, sessionId: sessionIdRef.current, goals: sessionGoals }),
       });
-      const data = await response.json();
-      const reply = data.reply || data.message || '응답을 받지 못했습니다.';
-      if (data.goals && Array.isArray(data.goals)) setSessionGoals(data.goals);
+
+      let reply = '';
+      let newGoals: string[] | null = null;
+      if (response.headers.get('content-type')?.includes('text/event-stream') && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const payload = line.slice(6);
+            if (payload === '[DONE]') break;
+            try {
+              const parsed = JSON.parse(payload);
+              if (parsed.type === 'delta') reply += parsed.text;
+              else if (parsed.type === 'done') { reply = parsed.reply || reply; newGoals = parsed.goals || null; }
+              else if (parsed.type === 'error') reply = '⚠️ ' + parsed.error;
+            } catch { /* ignore */ }
+          }
+        }
+      } else {
+        const data = await response.json();
+        reply = data.reply || data.message || '응답을 받지 못했습니다.';
+        newGoals = data.goals || null;
+      }
+      if (!reply) reply = '응답을 받지 못했습니다.';
+      if (newGoals && Array.isArray(newGoals)) setSessionGoals(newGoals);
 
       clearStepTimers();
       setCurrentStep(STEPS.length - 1);
@@ -314,11 +343,38 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
     try {
       const res = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
         body: JSON.stringify({ message: contextMsg, type: msgType }),
       });
-      const data = await res.json();
-      const reply = data.response || data.message || '응답을 받지 못했습니다.';
+
+      let reply = '';
+      if (res.headers.get('content-type')?.includes('text/event-stream') && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const payload = line.slice(6);
+            if (payload === '[DONE]') break;
+            try {
+              const parsed = JSON.parse(payload);
+              if (parsed.type === 'delta') reply += parsed.text;
+              else if (parsed.type === 'done') reply = parsed.reply || reply;
+              else if (parsed.type === 'error') reply = '⚠️ ' + parsed.error;
+            } catch { /* ignore */ }
+          }
+        }
+      } else {
+        const data = await res.json();
+        reply = data.response || data.message || '응답을 받지 못했습니다.';
+      }
+      if (!reply) reply = '응답을 받지 못했습니다.';
       
       // Check if response contains itinerary JSON
       const itinerary = tryParseItinerary(reply);
