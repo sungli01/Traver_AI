@@ -126,7 +126,7 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
 
       const response = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+        headers: { 'Content-Type': 'application/json',  },
         body: JSON.stringify({ message: messageToSend, context: contextMsgs, type: msgType, sessionId: sessionIdRef.current, goals: sessionGoals }),
       });
 
@@ -165,6 +165,8 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
       }
       if (!reply) reply = '응답을 받지 못했습니다.';
       if (newGoals && Array.isArray(newGoals)) setSessionGoals(newGoals);
+      
+      console.log('[FullScreenChat] SSE reply length:', reply.length, 'has days:', reply.includes('"days"'), 'first 200:', reply.slice(0, 200));
 
       clearStepTimers();
       setCurrentStep(STEPS.length - 1);
@@ -357,7 +359,7 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
     try {
       const res = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+        headers: { 'Content-Type': 'application/json',  },
         body: JSON.stringify({ message: contextMsg, type: msgType }),
       });
 
