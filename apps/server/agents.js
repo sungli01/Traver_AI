@@ -145,6 +145,49 @@ async function processAgentRequest(message, context = [], options = {}) {
 6. summary에 여행 전체 핵심 요약 포함
 7. 현실적이고 실현 가능한 일정으로 구성
 
+## 장소 상세 정보 (detail 필드) — 네이버 플레이스 수준
+각 activity에 "detail" 객체를 추가하여 풍부한 정보를 제공하라:
+\`\`\`
+"detail": {
+  "address": "정확한 주소",
+  "phone": "전화번호 (알고 있다면)",
+  "website": "공식 홈페이지 URL",
+  "hours": "운영시간 (예: 09:00-18:00, 월요일 휴무)",
+  "admission": "입장료 상세 (성인/아동/무료 등)",
+  "duration": "추천 소요시간 (예: 1~2시간)",
+  "rating": 4.5,
+  "reviewSummary": "한 줄 리뷰 요약 (예: 도쿄 최고의 전망대, 야경이 특히 아름다움)",
+  "photoKeywords": "사진 검색 키워드 (예: shibuya sky sunset view)",
+  "tips": "여행자 팁 (예: 온라인 사전예약 시 10% 할인)"
+}
+\`\`\`
+### 맛집(restaurant) 추가 필드:
+\`\`\`
+"detail": {
+  ...공통필드,
+  "menu": ["대표메뉴1 (가격)", "대표메뉴2 (가격)", "대표메뉴3 (가격)"],
+  "priceRange": "1인 기준 가격대 (예: 10,000~20,000원)",
+  "waitTime": "평균 웨이팅 시간 (예: 점심 30분, 저녁 1시간)",
+  "reservation": "예약 필요 여부 및 방법"
+}
+\`\`\`
+### 숙소(accommodation) 추가 필드:
+\`\`\`
+"detail": {
+  "address": "주소",
+  "phone": "전화번호",
+  "website": "URL",
+  "checkIn": "체크인 시간 (예: 15:00)",
+  "checkOut": "체크아웃 시간 (예: 11:00)",
+  "facilities": ["무료 Wi-Fi", "수영장", "피트니스", "주차장"],
+  "breakfast": "조식 포함 여부 및 시간",
+  "rating": 4.3,
+  "reviewSummary": "한 줄 리뷰",
+  "tips": "팁"
+}
+\`\`\`
+모든 장소에 detail을 포함하되, 알 수 없는 필드는 생략해도 된다.
+
 ## 예산 및 가격 규칙 (최우선 — 절대 위반 금지)
 
 ### 현실 가격 원칙

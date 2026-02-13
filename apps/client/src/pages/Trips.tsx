@@ -248,13 +248,35 @@ export default function Trips() {
   const handleCreateTrip = (data: any) => {
     setIsDialogOpen(false);
     
+    const hasDestination = data.destination?.trim();
+    const hasTitle = data.title?.trim();
+    const hasDate = data.startDate;
+    const hasBudget = data.budget && data.budget > 0;
+    
+    // 모든 필드가 비어있으면 자유 여행 추천
+    if (!hasDestination && !hasTitle && !hasDate && !hasBudget && !data.additionalInfo?.trim()) {
+      setChatInitialMessage('자유 여행 추천해줘. 요즘 인기 있는 여행지와 3박4일 일정을 추천해줘.');
+      setViewMode('chat');
+      toast({ title: "AI 여행 계획 시작", description: "AI 컨시어지가 자유 여행을 추천합니다." });
+      return;
+    }
+
     const startStr = data.startDate ? new Date(data.startDate).toLocaleDateString('ko-KR') : '';
     const endStr = data.endDate ? new Date(data.endDate).toLocaleDateString('ko-KR') : '';
-    const budget = data.budget ? `${data.budget.toLocaleString()}원` : '';
+    const budget = hasBudget ? `${data.budget.toLocaleString()}원` : '';
     const styleMap: Record<string, string> = { luxury: '럭셔리', budget: '가성비', adventure: '모험', business: '비즈니스' };
     const style = styleMap[data.travelStyle] || data.travelStyle;
     
-    let chatMessage = `${data.destination} 여행 계획해줘. 제목: ${data.title}, 기간: ${startStr} ~ ${endStr}, 예산: ${budget}, 스타일: ${style}`;
+    const parts: string[] = [];
+    if (hasDestination) parts.push(`${data.destination} 여행 계획해줘.`);
+    else parts.push('여행 계획해줘.');
+    if (hasTitle) parts.push(`제목: ${data.title}`);
+    if (startStr && endStr) parts.push(`기간: ${startStr} ~ ${endStr}`);
+    else if (startStr) parts.push(`출발일: ${startStr}`);
+    if (budget) parts.push(`예산: ${budget}`);
+    if (style) parts.push(`스타일: ${style}`);
+    
+    let chatMessage = parts.join(', ');
     if (data.additionalInfo?.trim()) {
       chatMessage += `\n\n추가 요청사항:\n${data.additionalInfo.trim()}`;
     }
@@ -264,7 +286,7 @@ export default function Trips() {
     
     toast({
       title: "AI 여행 계획 시작",
-      description: `${data.destination} 여행을 AI 컨시어지가 계획하고 있습니다.`,
+      description: `${hasDestination ? data.destination + ' ' : ''}여행을 AI 컨시어지가 계획하고 있습니다.`,
     });
   };
 
@@ -358,12 +380,11 @@ export default function Trips() {
       </div>
 
       {/* 요약 대시보드 위젯 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[ 
           { label: '전체 여행', value: stats.total, icon: MapPin, color: 'text-blue-500', bg: 'bg-blue-500/10', tab: 'all' },
           { label: '확정된 예약', value: stats.upcoming, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10', tab: 'confirmed' },
           { label: '설계 진행 중', value: stats.planning, icon: Clock, color: 'text-accent', bg: 'bg-accent/10', tab: 'planning' },
-          { label: '누적 지출 금액', value: formatCurrency(stats.totalSpent), icon: Wallet, color: 'text-primary', bg: 'bg-primary/10', tab: undefined },
         ].map((stat, i) => (
           <motion.div
             key={stat.label}

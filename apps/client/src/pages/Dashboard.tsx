@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Plus,
-  TrendingUp,
   Calendar,
   ShieldCheck,
   ArrowRight,
@@ -105,7 +104,7 @@ export default function Dashboard() {
         variants={staggerContainer}
         initial="initial"
         animate="animate"
-        className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6"
+        className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6"
       >
         <motion.div variants={fadeInUp}>
           <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
@@ -119,23 +118,6 @@ export default function Dashboard() {
               <div className="flex items-baseline gap-2">
                 <h3 className="text-2xl sm:text-3xl font-bold">{activeTripsCount}</h3>
                 <span className="text-xs text-emerald-500 font-medium">+1 지난달 대비</span>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div variants={fadeInUp}>
-          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-muted-foreground text-sm font-medium">이번 달 총 지출</span>
-                <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                  <TrendingUp className="w-5 h-5" />
-                </div>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-2xl sm:text-3xl font-bold">{formatCurrency(totalSpent)}</h3>
-                <span className="text-xs text-muted-foreground font-medium">자동 결제 포함</span>
               </div>
             </CardContent>
           </Card>

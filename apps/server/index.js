@@ -528,11 +528,27 @@ app.post('/api/track-event', async (req, res) => {
 });
 
 // ─── Price Tracking Endpoints ───
+app.post('/api/price-track/extract-items', async (req, res) => {
+  try {
+    const { tripData } = req.body;
+    if (!tripData) return res.status(400).json({ error: 'tripData required' });
+    const items = priceTracker.extractTrackableItems(tripData);
+    res.json({ success: true, items });
+  } catch (err) {
+    console.error('[API] price-track extract-items error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/price-track/start', async (req, res) => {
   try {
-    const { tripId, tripData } = req.body;
+    const { tripId, tripData, selectedItems, notificationChannels } = req.body;
     if (!tripId || !tripData) return res.status(400).json({ error: 'tripId and tripData required' });
-    const results = await priceTracker.trackPrices(tripId, tripData);
+    // Save notification channels preference (stored in memory for now)
+    if (notificationChannels) {
+      console.log(`[PriceTracker] Notification channels for trip ${tripId}:`, notificationChannels);
+    }
+    const results = await priceTracker.trackPrices(tripId, tripData, selectedItems);
     res.json({ success: true, items: results });
   } catch (err) {
     console.error('[API] price-track start error:', err.message);

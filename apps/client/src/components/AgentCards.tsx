@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Cpu,
@@ -37,7 +37,23 @@ interface AgentCardProps {
 }
 
 export function AgentCard({ agent, onActivate }: AgentCardProps) {
-  const isWorking = agent.status === 'working';
+  const [priceTrackStatus, setPriceTrackStatus] = useState<{ active: boolean; itemCount: number; lastCheck: string | null }>({ active: false, itemCount: 0, lastCheck: null });
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.agent === 'booking') {
+        setPriceTrackStatus({ active: detail.active, itemCount: detail.itemCount || 0, lastCheck: detail.lastCheck || null });
+      }
+    };
+    window.addEventListener('agent-status', handler);
+    return () => window.removeEventListener('agent-status', handler);
+  }, []);
+
+  const isBookingAgent = agent.type === AGENT_TYPES.BOOKING;
+  const isPriceTracking = isBookingAgent && priceTrackStatus.active;
+
+  const isWorking = agent.status === 'working' || isPriceTracking;
   const isError = agent.status === 'error';
   const isSuccess = agent.status === 'success';
 
@@ -172,6 +188,34 @@ export function AgentCard({ agent, onActivate }: AgentCardProps) {
               </Button>
             </div>
           </div>
+
+          {/* Price tracking status */}
+          <AnimatePresence>
+            {isPriceTracking && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="pt-2"
+              >
+                <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-2 flex items-start gap-2 border border-blue-200/30">
+                  <span className="relative flex h-2.5 w-2.5 mt-1">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+                  </span>
+                  <div className="text-[11px] leading-tight text-blue-700 dark:text-blue-300">
+                    <span className="font-semibold">추적 중...</span>
+                    <span className="text-blue-500 ml-1">{priceTrackStatus.itemCount}개 항목</span>
+                    {priceTrackStatus.lastCheck && (
+                      <span className="block text-[10px] text-blue-400 mt-0.5">
+                        마지막 체크: {new Date(priceTrackStatus.lastCheck).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Real-time Action Log Overlay */}
           <AnimatePresence>

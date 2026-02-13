@@ -67,44 +67,78 @@ function extractTrackableItems(tripData) {
   const destination = tripData.destination || '';
   const period = tripData.period || '';
 
-  // Extract flights from activities with category 'transport' containing flight-related keywords
   if (tripData.days) {
     for (const day of tripData.days) {
       for (const activity of (day.activities || [])) {
+        // Flights
         if (activity.category === 'transport' && /항공|비행|flight|인천|공항/.test(activity.title)) {
           items.push({
             type: 'flight',
             name: activity.title,
             destination,
             travelDate: day.date || period,
+            category: '항공편',
+          });
+        }
+        // Rental car
+        if (activity.category === 'transport' && /렌터카|렌트|rental|car/.test(activity.title)) {
+          items.push({
+            type: 'rental_car',
+            name: activity.title,
+            destination,
+            travelDate: day.date || period,
+            category: '렌터카',
+          });
+        }
+        // Activities / tickets
+        if ((activity.category === 'activity' || activity.category === 'attraction') && /입장|티켓|체험|투어|ticket/.test(activity.title)) {
+          items.push({
+            type: 'activity',
+            name: activity.title,
+            destination,
+            travelDate: day.date || period,
+            category: '액티비티/입장권',
+          });
+        }
+        // Restaurant reservations
+        if (activity.category === 'restaurant' && /예약|reservation/.test(activity.title)) {
+          items.push({
+            type: 'restaurant',
+            name: activity.title,
+            destination,
+            travelDate: day.date || period,
+            category: '레스토랑 예약',
           });
         }
       }
-      // Extract hotel from accommodation
+      // Hotels
       if (day.accommodation && day.accommodation.name) {
         items.push({
           type: 'hotel',
           name: day.accommodation.name,
           destination,
           travelDate: day.date || period,
+          category: '호텔',
         });
       }
     }
   }
 
-  // If no items found, create generic ones based on destination
+  // If no items found, create generic ones
   if (items.length === 0 && destination) {
     items.push({
       type: 'flight',
       name: `인천 → ${destination} 항공편`,
       destination,
       travelDate: period,
+      category: '항공편',
     });
     items.push({
       type: 'hotel',
       name: `${destination} 호텔`,
       destination,
       travelDate: period,
+      category: '호텔',
     });
   }
 
@@ -120,8 +154,8 @@ function extractTrackableItems(tripData) {
 /**
  * 가격 추적 시작 — 즉시 1회 체크 수행
  */
-async function trackPrices(tripId, tripData) {
-  const items = extractTrackableItems(tripData);
+async function trackPrices(tripId, tripData, selectedItems) {
+  const items = selectedItems && selectedItems.length > 0 ? selectedItems : extractTrackableItems(tripData);
   const results = [];
 
   for (const item of items) {

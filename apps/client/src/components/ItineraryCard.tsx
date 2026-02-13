@@ -4,13 +4,35 @@ import {
   Plane, UtensilsCrossed, MapPin, ShoppingBag, Sparkles, Coffee,
   ExternalLink, Hotel, ChevronDown, ChevronUp,
   CalendarDays, Wallet, Star, Navigation, Plus, StickyNote, Check,
-  Map as MapIcon, BarChart3
+  Map as MapIcon, BarChart3, Clock, Phone, Globe, X, MapPinIcon,
+  DollarSign, Timer, Users, Utensils, Wifi, Info
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 // Lazy load map to avoid SSR issues with Leaflet
 const ItineraryMap = lazy(() => import('./ItineraryMap').then(m => ({ default: m.ItineraryMap })));
+
+interface PlaceDetail {
+  address?: string;
+  phone?: string;
+  website?: string;
+  hours?: string;
+  admission?: string;
+  duration?: string;
+  rating?: number;
+  reviewSummary?: string;
+  photoKeywords?: string;
+  tips?: string;
+  menu?: string[];
+  priceRange?: string;
+  waitTime?: string;
+  reservation?: string;
+  checkIn?: string;
+  checkOut?: string;
+  facilities?: string[];
+  breakfast?: string;
+}
 
 interface Activity {
   time: string;
@@ -23,6 +45,7 @@ interface Activity {
   signature?: string;
   lat?: number;
   lng?: number;
+  detail?: PlaceDetail;
 }
 
 interface Accommodation {
@@ -32,6 +55,7 @@ interface Accommodation {
   linkLabel?: string;
   lat?: number;
   lng?: number;
+  detail?: PlaceDetail;
 }
 
 interface Day {
@@ -459,8 +483,7 @@ export function ItineraryCard({ data, onMoveToSchedule, onPlaceClick }: { data: 
         </div>
       )}
 
-      {/* Cost Summary */}
-      {showCost && <CostSummary data={data} />}
+      {/* Cost Summary - removed: spending statistics hidden */}
 
       {/* Summary text */}
       <div className="px-4 pt-3">

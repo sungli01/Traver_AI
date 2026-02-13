@@ -30,20 +30,17 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { AGENT_TYPES } from '@/lib/index';
+import { CITY_TO_COUNTRY, getHolidayMap } from '@/data/holidays2026';
 
 // --- Schemas ---
 
 const tripSchema = z.object({
-  title: z.string().min(2, '여행 제목은 2글자 이상이어야 합니다.'),
-  destination: z.string().min(2, '목적지를 입력해주세요.'),
-  startDate: z.date({
-    required_error: '출발일을 선택해주세요.',
-  }),
-  endDate: z.date({
-    required_error: '도착일을 선택해주세요.',
-  }),
-  budget: z.coerce.number().min(1000, '최소 예산은 1,000원 이상입니다.'),
-  travelStyle: z.enum(['luxury', 'budget', 'adventure', 'business']),
+  title: z.string().optional().default(''),
+  destination: z.string().optional().default(''),
+  startDate: z.date().optional(),
+  endDate: z.date().optional(),
+  budget: z.coerce.number().optional().default(0),
+  travelStyle: z.enum(['luxury', 'budget', 'adventure', 'business']).optional().default('adventure'),
   additionalInfo: z.string().optional(),
 });
 
@@ -136,6 +133,14 @@ export function NewTripForm({ onSubmit }: { onSubmit: (data: z.infer<typeof trip
   // 날짜 range
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [calendarOpen, setCalendarOpen] = useState(false);
+
+  // 공휴일 맵 (선택된 도시 기반)
+  const holidayMap = React.useMemo(() => {
+    const dest = form.getValues('destination') || '';
+    const country = CITY_TO_COUNTRY[dest];
+    if (!country) return undefined;
+    return getHolidayMap(country);
+  }, [form.watch('destination')]);
 
   useEffect(() => {
     if (cityQuery.length > 0) {
@@ -299,7 +304,15 @@ export function NewTripForm({ onSubmit }: { onSubmit: (data: z.infer<typeof trip
                 disabled={(date) => date < new Date()}
                 initialFocus
                 locale={ko}
+                holidayMap={holidayMap}
               />
+              {holidayMap && holidayMap.size > 0 && (
+                <div className="px-3 pb-2 flex items-center gap-3 text-[10px] text-muted-foreground border-t pt-2">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-600 inline-block" /> 공휴일</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block" /> 일요일</span>
+                  <span className="ml-auto">날짜에 마우스를 올리면 휴일 이름이 표시됩니다</span>
+                </div>
+              )}
             </PopoverContent>
           </Popover>
           {form.formState.errors.startDate && (
