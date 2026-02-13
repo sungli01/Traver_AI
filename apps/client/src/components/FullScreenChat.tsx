@@ -363,34 +363,17 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
         body: JSON.stringify({ message: contextMsg, type: msgType }),
       });
 
-      let reply = '';
-      if (res.headers.get('content-type')?.includes('text/event-stream') && res.body) {
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let streaming2 = true;
-        while (streaming2) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            const payload = line.slice(6).trim();
-            if (payload === '[DONE]') { streaming2 = false; break; }
-            try {
-              const parsed = JSON.parse(payload);
-              if (parsed.type === 'delta') reply += parsed.text;
-              else if (parsed.type === 'done') { if (parsed.reply) reply = parsed.reply; }
-              else if (parsed.type === 'error') reply = '⚠️ ' + parsed.error;
-            } catch { /* ignore */ }
-          }
-        }
-      } else {
-        const data = await res.json();
-        reply = data.reply || data.response || data.message || '응답을 받지 못했습니다.';
+      if (!res.ok) {
+        console.error('[ScheduleChat] API error:', res.status, res.statusText);
+        setActivityMessages(prev => [...prev, { role: 'assistant', content: `⚠️ 서버 오류 (${res.status}). 잠시 후 다시 시도해주세요.` }]);
+        setActivityLoading(false);
+        return;
       }
+
+      let reply = '';
+      const data = await res.json();
+      reply = data.reply || data.response || data.message || '';
+      console.log('[ScheduleChat] reply length:', reply.length, 'has days:', reply.includes('"days"'));
       if (!reply) reply = '응답을 받지 못했습니다.';
       
       // Check if response contains itinerary JSON
