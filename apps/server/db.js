@@ -9,8 +9,7 @@ function getPool() {
       console.warn('[DB] DATABASE_URL not set — database features disabled');
       return null;
     }
-    const isSSL = connectionString.includes('railway.internal') ? false : 
-                  connectionString.includes('rlwy.net');
+    const isSSL = false; // Railway TCP proxy doesn't support SSL
     pool = new Pool({
       connectionString,
       max: 10,
