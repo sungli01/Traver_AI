@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
-import { Send, Loader2, CheckCircle2, ArrowLeft, MessageSquare, Map as MapIcon, Pencil, X } from 'lucide-react';
+import { Send, Loader2, CheckCircle2, ArrowLeft, MessageSquare, Map as MapIcon, Pencil, X, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useSecurityStore } from '@/stores/securityStore';
@@ -563,16 +563,6 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
 
   const previewPanel = (
     <div className="flex flex-col h-full overflow-y-auto p-2 lg:p-3">
-      {/* Place preview map */}
-      {placePreview && (
-        <div className="mb-3 rounded-xl overflow-hidden border border-blue-200 shadow-sm">
-          <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-950 px-3 py-2">
-            <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">📍 {placePreview.title}</span>
-            <button onClick={() => setPlacePreview(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>
-          </div>
-          <div ref={placeMapRef} style={{ height: '250px', width: '100%' }} />
-        </div>
-      )}
       {latestItinerary ? (
         <div className="space-y-3">
           <ItineraryCard data={latestItinerary} onPlaceClick={handlePlaceClick} />
@@ -594,6 +584,27 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
       )}
     </div>
   );
+
+  // Fullscreen place map mode
+  if (placePreview) {
+    return (
+      <div className="flex flex-col h-full">
+        {/* Map header with close */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm shrink-0">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-primary" />
+            <span className="text-sm font-bold text-foreground">📍 {placePreview.title}</span>
+          </div>
+          <Button variant="outline" size="sm" className="rounded-xl gap-1.5 text-xs" onClick={() => setPlacePreview(null)}>
+            <X className="w-3.5 h-3.5" /> 닫기
+          </Button>
+        </div>
+        <div className="flex-1 min-h-0">
+          <div ref={placeMapRef} style={{ height: '100%', width: '100%' }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
