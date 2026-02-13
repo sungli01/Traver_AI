@@ -5,8 +5,9 @@ import {
   Save, MessageSquare, Wallet, CalendarDays, MapPin, X,
   Plane, UtensilsCrossed, ShoppingBag, Sparkles, Coffee,
   Hotel, Check, Pencil, BarChart3, CheckCircle2, CreditCard,
-  Navigation, Loader2, Lightbulb
+  Navigation, Loader2, Lightbulb, BotMessageSquare
 } from 'lucide-react';
+import { ActivityChatPanel } from '@/components/ActivityChatPanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -200,6 +201,7 @@ function PriceCheckModal({ activity, destination, onClose }: { activity: Editabl
 
 function ActivityRow({
   activity, index, total, onUpdate, onDelete, onMove, destination,
+  isChatOpen, onChatToggle,
 }: {
   activity: EditableActivity;
   index: number;
@@ -209,6 +211,8 @@ function ActivityRow({
   onMove: (dir: -1 | 1) => void;
   destination?: string;
   prevActivity?: EditableActivity;
+  isChatOpen?: boolean;
+  onChatToggle?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [showPriceCheck, setShowPriceCheck] = useState(false);
@@ -315,14 +319,34 @@ function ActivityRow({
         className="w-full text-sm rounded-md border border-input bg-background px-2 py-1.5 resize-none"
         rows={2}
       />
-      <div className="flex justify-between">
-        <Button variant="outline" size="sm" className="h-7 text-xs rounded-lg gap-1" onClick={() => setShowPriceCheck(true)}>
-          <Lightbulb className="w-3 h-3" /> 적정가 확인
-        </Button>
+      <div className="flex justify-between flex-wrap gap-1">
+        <div className="flex gap-1">
+          <Button variant="outline" size="sm" className="h-7 text-xs rounded-lg gap-1" onClick={() => setShowPriceCheck(true)}>
+            <Lightbulb className="w-3 h-3" /> 적정가 확인
+          </Button>
+          <Button variant="outline" size="sm" className="h-7 text-xs rounded-lg gap-1 text-blue-600 border-blue-200 hover:bg-blue-50" onClick={onChatToggle}>
+            <BotMessageSquare className="w-3 h-3" /> AI에게 문의
+          </Button>
+        </div>
         <Button size="sm" className="h-7 text-xs rounded-lg" onClick={() => setEditing(false)}>
           <Check className="w-3 h-3 mr-1" /> 완료
         </Button>
       </div>
+      {isChatOpen && (
+        <ActivityChatPanel
+          activityTitle={activity.title}
+          activityCategory={getConfig(activity.category).label}
+          destination={destination || ''}
+          onUpdateActivity={(updates) => {
+            const updated = { ...activity };
+            if (updates.title) updated.title = updates.title;
+            if (updates.cost) updated.cost = updates.cost;
+            if (updates.description) updated.description = updates.description;
+            onUpdate(updated);
+          }}
+          onClose={() => onChatToggle?.()}
+        />
+      )}
       {showPriceCheck && (
         <PriceCheckModal activity={activity} destination={destination || ''} onClose={() => setShowPriceCheck(false)} />
       )}
@@ -375,6 +399,7 @@ function DayAccordion({
   const [addingActivity, setAddingActivity] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [editingHeader, setEditingHeader] = useState(false);
+  const [activeChatActivityId, setActiveChatActivityId] = useState<string | null>(null);
 
   const dayCost = day.activities.reduce((sum, a) => sum + parseCost(a.cost), 0)
     + (day.accommodation ? parseCost(day.accommodation.cost) : 0);
@@ -477,6 +502,8 @@ function DayAccordion({
                       onDelete={() => setDeleteTarget(act.id)}
                       onMove={(dir) => moveActivity(act.id, dir)}
                       destination={destination}
+                      isChatOpen={activeChatActivityId === act.id}
+                      onChatToggle={() => setActiveChatActivityId(prev => prev === act.id ? null : act.id)}
                     />
                   </div>
                 );
