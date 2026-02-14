@@ -503,9 +503,10 @@ function DayAccordion({
                   prev = prevDayAccommodation;
                 }
                 const canNavigate = prev?.lat && prev?.lng && act.lat && act.lng && act.category !== 'transport';
+                const isFromHotel = i === 0 && prevDayAccommodation?.lat && prevDayAccommodation?.lng;
                 const prevTitle = i > 0
                   ? day.activities[i - 1].title
-                  : (prevDayAccommodation ? '숙소' : '');
+                  : (prevDayAccommodation?.name || '숙소');
                 return (
                   <div key={act.id}>
                     {canNavigate && (
@@ -516,7 +517,7 @@ function DayAccordion({
                         )}
                         className="flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-medium ml-10 mb-1 bg-transparent border-none cursor-pointer"
                       >
-                        <Navigation className="w-3 h-3" /> 🗺️ 길찾기 (이전 장소 → {act.title})
+                        <Navigation className="w-3 h-3" /> {isFromHotel ? `🏨 길찾기 (${prevTitle} → ${act.title})` : `🗺️ 길찾기 (이전 장소 → ${act.title})`}
                       </button>
                     )}
                     <ActivityRow
