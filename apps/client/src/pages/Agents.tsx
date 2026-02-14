@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bot,
   Settings2,
@@ -9,13 +9,23 @@ import {
   ShieldCheck,
   Plus,
   Search,
-  ChevronRight,
-  Terminal
+  Terminal,
+  X,
+  ArrowLeft,
+  RotateCcw,
 } from 'lucide-react';
 import { sampleAgents } from '@/data/index';
 import { TravelAgent, getStatusColor } from '@/lib/index';
 import { AgentGrid } from '@/components/AgentCards';
 import { AgentConfigForm } from '@/components/Forms';
+import {
+  OrchestratorSettings,
+  ResearchEngineSettings,
+  SentinelSettings,
+  VaultGuardianSettings,
+  BlockchainVerifierSettings,
+  ZkProofEngineSettings,
+} from '@/components/AgentSettings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Card,
@@ -23,7 +33,7 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-  CardFooter
+  CardFooter,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,18 +44,38 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogTrigger
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+// 에이전트별 고유 색상
+const AGENT_COLORS: Record<string, string> = {
+  'skywork-orchestrator': 'from-violet-500/20 to-purple-600/10 border-violet-500/30',
+  'research-engine': 'from-blue-500/20 to-cyan-600/10 border-blue-500/30',
+  'sentinel-agent': 'from-amber-500/20 to-orange-600/10 border-amber-500/30',
+  'vault-guardian': 'from-emerald-500/20 to-green-600/10 border-emerald-500/30',
+  'blockchain-verifier': 'from-indigo-500/20 to-blue-600/10 border-indigo-500/30',
+  'zk-proof-engine': 'from-pink-500/20 to-rose-600/10 border-pink-500/30',
+};
+
+function getAgentSettingsPanel(agentId: string) {
+  switch (agentId) {
+    case 'skywork-orchestrator': return <OrchestratorSettings />;
+    case 'research-engine': return <ResearchEngineSettings />;
+    case 'sentinel-agent': return <SentinelSettings />;
+    case 'vault-guardian': return <VaultGuardianSettings />;
+    case 'blockchain-verifier': return <BlockchainVerifierSettings />;
+    case 'zk-proof-engine': return <ZkProofEngineSettings />;
+    default: return null;
+  }
+}
+
 export default function Agents() {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [isConfigOpen, setIsConfigOpen] = useState(false);
 
   const handleAgentAction = (id: string) => {
     setSelectedAgentId(id);
-    setIsConfigOpen(true);
   };
 
   const selectedAgent = sampleAgents.find((a) => a.id === selectedAgentId);
@@ -89,19 +119,84 @@ export default function Agents() {
         </div>
       </header>
 
-      <section className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-semibold flex items-center gap-2">
-            <Activity className="w-6 h-6 text-primary" />
-            활성 에이전트 상태
-          </h2>
-          <Badge variant="outline" className="px-3 py-1">
-            전체 시스템 가동률: 96.5%
-          </Badge>
+      {/* 에이전트 그리드 + 슬라이드 설정 패널 */}
+      <div className="flex gap-6 relative">
+        {/* 에이전트 목록 영역 */}
+        <div className={`transition-all duration-300 ${selectedAgentId ? 'w-1/2 lg:w-3/5' : 'w-full'}`}>
+          <section className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-semibold flex items-center gap-2">
+                <Activity className="w-6 h-6 text-primary" />
+                활성 에이전트 상태
+              </h2>
+              <Badge variant="outline" className="px-3 py-1">
+                전체 시스템 가동률: 96.5%
+              </Badge>
+            </div>
+            <AgentGrid agents={sampleAgents} onAgentAction={handleAgentAction} />
+          </section>
         </div>
-        <AgentGrid agents={sampleAgents} onAgentAction={handleAgentAction} />
-      </section>
 
+        {/* 슬라이드 설정 패널 */}
+        <AnimatePresence>
+          {selectedAgent && (
+            <motion.div
+              key={selectedAgent.id}
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: '50%', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="sticky top-4 self-start overflow-hidden lg:w-2/5"
+            >
+              <Card className={`border bg-gradient-to-br ${AGENT_COLORS[selectedAgent.id] || ''} shadow-xl backdrop-blur-md h-full`}>
+                <CardHeader className="border-b bg-card/80 backdrop-blur-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <img src={selectedAgent.avatar} alt="" className="w-10 h-10 rounded-full border bg-muted" />
+                      <div>
+                        <CardTitle className="text-lg">{selectedAgent.name}</CardTitle>
+                        <CardDescription className="text-xs">{selectedAgent.type} 에이전트 설정</CardDescription>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                          const key = `agent-settings-${selectedAgent.id}`;
+                          localStorage.removeItem(key);
+                          // force re-render by toggling selection
+                          setSelectedAgentId(null);
+                          setTimeout(() => setSelectedAgentId(selectedAgent.id), 50);
+                        }}
+                        title="설정 초기화"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setSelectedAgentId(null)}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <ScrollArea className="h-[calc(100vh-16rem)]">
+                  <CardContent className="p-6">
+                    {getAgentSettingsPanel(selectedAgent.id)}
+                  </CardContent>
+                </ScrollArea>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* 하단 심층 관리 + 시스템 정보 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
           <Card className="h-full overflow-hidden border-none shadow-xl bg-card/50 backdrop-blur-md">
@@ -129,7 +224,11 @@ export default function Agents() {
               <CardContent className="p-0 flex-1">
                 <TabsContent value="performance" className="m-0 p-6 space-y-8">
                   {sampleAgents.map((agent) => (
-                    <div key={agent.id} className="space-y-3">
+                    <div
+                      key={agent.id}
+                      className={`space-y-3 p-3 rounded-lg cursor-pointer transition-colors ${selectedAgentId === agent.id ? 'bg-accent/10 ring-1 ring-accent/30' : 'hover:bg-muted/30'}`}
+                      onClick={() => handleAgentAction(agent.id)}
+                    >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <img src={agent.avatar} alt={agent.name} className="w-8 h-8 rounded-full border bg-muted" />
@@ -246,30 +345,6 @@ export default function Agents() {
           </Card>
         </div>
       </div>
-
-      <Dialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              {selectedAgent?.avatar && (
-                <img src={selectedAgent.avatar} alt="" className="w-10 h-10 rounded-full border" />
-              )}
-              <div>
-                <span>{selectedAgent?.name} 설정 관리</span>
-                <p className="text-xs font-normal text-muted-foreground">{selectedAgent?.type} 에이전트 매개변수 조정</p>
-              </div>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <AgentConfigForm 
-              onSubmit={(data) => {
-                console.log('Config Updated:', data);
-                setIsConfigOpen(false);
-              }} 
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
