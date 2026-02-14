@@ -23,6 +23,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { loadSavedTrips, deleteTrip, type ScheduleData } from '@/components/ScheduleEditor';
 import { PurchaseApproval } from '@/components/PurchaseApproval';
 import { useToast } from '@/components/ui/use-toast';
+import { UsageBanner } from '@/components/UsageBanner';
 
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
@@ -58,6 +59,7 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6 md:gap-8 pb-8 sm:pb-12">
+      <UsageBanner />
       {/* Hero Section */}
       <motion.section 
         initial={{ opacity: 0, scale: 0.98 }}

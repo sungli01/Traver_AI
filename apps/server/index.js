@@ -70,6 +70,31 @@ app.post('/api/chat', async (req, res) => {
     return res.status(400).json({ error: 'Message is required' });
   }
 
+  // Plan limit check for authenticated users
+  let userPlan = 'free';
+  const authHeader = req.headers.authorization;
+  let authUserId = null;
+  if (authHeader) {
+    try {
+      const decoded = jwt.verify(authHeader.replace('Bearer ', ''), JWT_SECRET);
+      authUserId = decoded.userId;
+      const userRes = await db.query('SELECT plan FROM users WHERE id = $1', [authUserId]);
+      userPlan = userRes.rows[0]?.plan || 'free';
+      const limit = PLAN_LIMITS[userPlan]?.chat;
+      if (limit !== Infinity) {
+        const month = new Date().toISOString().slice(0, 7);
+        const usageRes = await db.query(
+          'SELECT COUNT(*) as cnt FROM usage_logs WHERE user_id = $1 AND action = $2 AND month = $3',
+          [authUserId, 'chat', month]
+        );
+        const used = parseInt(usageRes.rows[0].cnt);
+        if (used >= limit) {
+          return res.status(403).json({ error: 'plan_limit', limit, used, plan: userPlan, upgrade: true });
+        }
+      }
+    } catch { /* unauthenticated chat allowed */ }
+  }
+
   // Manage session goals
   const sid = sessionId || 'default';
   let goals = sessionGoals.get(sid) || [];
@@ -86,6 +111,11 @@ app.post('/api/chat', async (req, res) => {
   }
   sessionGoals.set(sid, goals);
 
+  // Priority context for Pro/Business
+  const extraContext = (userPlan === 'pro' || userPlan === 'business')
+    ? { priority: true, planLevel: userPlan }
+    : {};
+
   const wantStream = (req.headers.accept || '').includes('text/event-stream');
 
   if (wantStream) {
@@ -96,7 +126,7 @@ app.post('/api/chat', async (req, res) => {
     res.flushHeaders();
 
     try {
-      const fullText = await processAgentRequestWithKnowledgeStream(message, context, { goals }, (delta) => {
+      const fullText = await processAgentRequestWithKnowledgeStream(message, context, { goals, ...extraContext }, (delta) => {
         res.write(`data: ${JSON.stringify({ type: 'delta', text: delta })}\n\n`);
       });
 
@@ -106,6 +136,9 @@ app.post('/api/chat', async (req, res) => {
         const updatedGoals = mergeGoals(goals, responseGoals);
         sessionGoals.set(sid, updatedGoals);
       }
+
+      // Log usage
+      if (authUserId) logUsage(authUserId, 'chat').catch(() => {});
 
       res.write(`data: ${JSON.stringify({ type: 'done', reply: fullText, goals: sessionGoals.get(sid) })}\n\n`);
       res.write('data: [DONE]\n\n');
@@ -118,13 +151,16 @@ app.post('/api/chat', async (req, res) => {
   } else {
     // Non-streaming (legacy)
     try {
-      const response = await processAgentRequestWithKnowledge(message, context, { goals });
+      const response = await processAgentRequestWithKnowledge(message, context, { goals, ...extraContext });
 
       const responseGoals = extractGoals(response);
       if (responseGoals.length > 0) {
         const updatedGoals = mergeGoals(goals, responseGoals);
         sessionGoals.set(sid, updatedGoals);
       }
+
+      // Log usage
+      if (authUserId) logUsage(authUserId, 'chat').catch(() => {});
 
       res.json({ reply: response, goals: sessionGoals.get(sid) });
     } catch (err) {
@@ -142,6 +178,51 @@ app.get('/api/exchange-rates', async (req, res) => {
   } catch (err) {
     console.error('[API] exchange-rates error:', err.message);
     res.json({ rates: [], error: 'Exchange rates not available' });
+  }
+});
+
+// ── City Guide API ──────────────────────────────────────────
+app.get('/api/cities', async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM city_info ORDER BY city');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('[API] cities error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/city/:cityName', async (req, res) => {
+  try {
+    const { cityName } = req.params;
+    const [cityInfo, places, routes, events, rates] = await Promise.all([
+      db.query('SELECT * FROM city_info WHERE city ILIKE $1', [cityName]),
+      db.query('SELECT * FROM places WHERE city ILIKE $1 ORDER BY trust_score DESC, rating DESC', [cityName]),
+      db.query('SELECT * FROM routes WHERE from_city ILIKE $1 OR to_city ILIKE $1 ORDER BY cost_krw ASC NULLS LAST', [cityName]),
+      db.query('SELECT * FROM events WHERE city ILIKE $1 ORDER BY start_date ASC NULLS LAST', [cityName]),
+      db.query('SELECT * FROM exchange_rates'),
+    ]);
+
+    const info = cityInfo.rows[0] || null;
+    const country = info?.country || (places.rows[0]?.country) || null;
+
+    // find matching exchange rate
+    let exchangeRate = null;
+    if (info?.currency && rates.rows.length) {
+      exchangeRate = rates.rows.find(r => info.currency.includes(r.currency)) || null;
+    }
+
+    res.json({
+      info,
+      places: places.rows,
+      routes: routes.rows,
+      events: events.rows,
+      exchangeRate,
+      country,
+    });
+  } catch (err) {
+    console.error('[API] city detail error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -209,6 +290,13 @@ app.post('/api/knowledge/collect', async (req, res) => {
   }
 });
 
+// ─── Plan Limits Config ───
+const PLAN_LIMITS = {
+  free: { chat: 5, itinerary_create: 2, price_track: 0 },
+  pro: { chat: Infinity, itinerary_create: Infinity, price_track: 10 },
+  business: { chat: Infinity, itinerary_create: Infinity, price_track: Infinity },
+};
+
 // ─── Auth Middleware ───
 function authMiddleware(req, res, next) {
   const header = req.headers.authorization;
@@ -221,6 +309,49 @@ function authMiddleware(req, res, next) {
   } catch {
     return res.status(401).json({ error: '유효하지 않은 토큰입니다' });
   }
+}
+
+// ─── Plan Limit Middleware ───
+function planLimitMiddleware(action) {
+  return async (req, res, next) => {
+    try {
+      const userId = req.userId;
+      const userRes = await db.query('SELECT plan FROM users WHERE id = $1', [userId]);
+      const plan = userRes.rows[0]?.plan || 'free';
+      req.userPlan = plan;
+
+      const limit = PLAN_LIMITS[plan]?.[action];
+      if (limit === undefined || limit === Infinity) return next();
+
+      const month = new Date().toISOString().slice(0, 7);
+      const usageRes = await db.query(
+        'SELECT COUNT(*) as cnt FROM usage_logs WHERE user_id = $1 AND action = $2 AND month = $3',
+        [userId, action, month]
+      );
+      const used = parseInt(usageRes.rows[0].cnt);
+
+      if (used >= limit) {
+        return res.status(403).json({
+          error: 'plan_limit',
+          limit,
+          used,
+          plan,
+          upgrade: true,
+          message: `${plan} 플랜의 ${action} 월간 한도(${limit}회)를 초과했습니다.`,
+        });
+      }
+      req.usageUsed = used;
+      next();
+    } catch (err) {
+      console.error('[PlanLimit] error:', err.message);
+      next(); // fail open
+    }
+  };
+}
+
+async function logUsage(userId, action) {
+  const month = new Date().toISOString().slice(0, 7);
+  await db.query('INSERT INTO usage_logs (user_id, action, month) VALUES ($1, $2, $3)', [userId, action, month]);
 }
 
 // ─── Auth Endpoints ───
@@ -265,9 +396,11 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
   try {
-    const result = await db.query('SELECT id, email, name, created_at FROM users WHERE id = $1', [req.userId]);
+    const result = await db.query('SELECT id, email, name, plan, plan_expires_at, created_at FROM users WHERE id = $1', [req.userId]);
     if (result.rows.length === 0) return res.status(404).json({ error: '사용자를 찾을 수 없습니다' });
-    res.json({ user: result.rows[0] });
+    const user = result.rows[0];
+    user.plan = user.plan || 'free';
+    res.json({ user });
   } catch (err) {
     console.error('[Auth] me error:', err.message);
     res.status(500).json({ error: '서버 오류' });
@@ -406,6 +539,43 @@ async function findOrCreateOAuthUser(provider, oauthId, email, name) {
   const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
   return { user, token };
 }
+
+// ─── Usage & Plan Endpoints ───
+app.get('/api/user/usage', authMiddleware, async (req, res) => {
+  try {
+    const month = new Date().toISOString().slice(0, 7);
+    const userRes = await db.query('SELECT plan FROM users WHERE id = $1', [req.userId]);
+    const plan = userRes.rows[0]?.plan || 'free';
+    const usageRes = await db.query(
+      'SELECT action, COUNT(*) as count FROM usage_logs WHERE user_id = $1 AND month = $2 GROUP BY action',
+      [req.userId, month]
+    );
+    const usage = {};
+    for (const row of usageRes.rows) {
+      usage[row.action] = parseInt(row.count);
+    }
+    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+    res.json({ plan, month, usage, limits });
+  } catch (err) {
+    console.error('[Usage] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/user/plan', authMiddleware, async (req, res) => {
+  try {
+    const { plan } = req.body;
+    if (!['free', 'pro', 'business'].includes(plan)) {
+      return res.status(400).json({ error: '유효하지 않은 플랜입니다' });
+    }
+    const expiresAt = plan === 'free' ? null : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    await db.query('UPDATE users SET plan = $1, plan_expires_at = $2 WHERE id = $3', [plan, expiresAt, req.userId]);
+    res.json({ success: true, plan, plan_expires_at: expiresAt });
+  } catch (err) {
+    console.error('[Plan] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ─── Admin Endpoints ───
 app.get('/api/admin/users', async (req, res) => {
@@ -639,6 +809,19 @@ async function initDB() {
       await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS oauth_id VARCHAR(255)`);
       // Allow null password for OAuth users
       await db.query(`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL`).catch(() => {});
+      // Plan & usage columns
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS plan VARCHAR(20) DEFAULT 'free'`);
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMP`);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS usage_logs (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id),
+          action VARCHAR(50) NOT NULL,
+          month VARCHAR(7) NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      console.log('[DB] plan & usage_logs ready');
       console.log('[DB] users table ready (with OAuth columns)');
 
       // Price tracking tables
@@ -694,6 +877,30 @@ async function initDB() {
         )
       `);
       console.log('[DB] chat_logs & user_activity tables ready');
+
+      // city_info table for city guide feature
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS city_info (
+          id SERIAL PRIMARY KEY,
+          city VARCHAR(100) UNIQUE NOT NULL,
+          country VARCHAR(100) NOT NULL,
+          overview TEXT,
+          population VARCHAR(50),
+          area VARCHAR(50),
+          language VARCHAR(100),
+          timezone VARCHAR(50),
+          currency VARCHAR(50),
+          visa_info TEXT,
+          best_season TEXT,
+          weather_summary JSONB,
+          transport_info JSONB,
+          local_tips TEXT[],
+          price_index JSONB,
+          image_url TEXT,
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      console.log('[DB] city_info table ready');
 
       // Seed demo data if tables are empty
       const chatCount = await db.query('SELECT COUNT(*) as c FROM chat_logs');

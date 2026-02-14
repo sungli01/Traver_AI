@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, X, Crown, Zap, Building2 } from 'lucide-react';
+import { Check, X, Crown, Zap, Building2, Shield } from 'lucide-react';
+import { useAuthStore } from '@/stores/authStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -66,8 +67,32 @@ const plans = [
   },
 ];
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
 export default function Pricing() {
   const [showDialog, setShowDialog] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [adminMsg, setAdminMsg] = useState('');
+  const { token, user } = useAuthStore();
+
+  const changePlan = async (plan: string) => {
+    if (!token) { setAdminMsg('로그인이 필요합니다'); return; }
+    try {
+      const res = await fetch(`${API_BASE}/api/user/plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAdminMsg(`✅ ${plan} 플랜으로 변경 완료! 새로고침하세요.`);
+        // Update local state
+        useAuthStore.getState().loadFromStorage();
+      } else {
+        setAdminMsg(`❌ ${data.error}`);
+      }
+    } catch { setAdminMsg('❌ 서버 오류'); }
+  };
 
   return (
     <div className="space-y-8">
@@ -137,6 +162,28 @@ export default function Pricing() {
           <Button onClick={() => setShowDialog(false)} className="w-full">확인</Button>
         </DialogContent>
       </Dialog>
+
+      {/* Admin Test Panel */}
+      {token && (
+        <div className="max-w-md mx-auto mt-8">
+          <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground" onClick={() => setShowAdmin(!showAdmin)}>
+            <Shield className="h-3 w-3" /> 테스트용 플랜 변경
+          </Button>
+          {showAdmin && (
+            <Card className="mt-2">
+              <CardContent className="py-3 space-y-2">
+                <p className="text-xs text-muted-foreground">현재: <strong>{user?.plan || 'free'}</strong> (결제 없이 테스트용)</p>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => changePlan('free')}>Free</Button>
+                  <Button size="sm" variant="outline" onClick={() => changePlan('pro')}>Pro</Button>
+                  <Button size="sm" variant="outline" onClick={() => changePlan('business')}>Business</Button>
+                </div>
+                {adminMsg && <p className="text-xs mt-1">{adminMsg}</p>}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   );
 }

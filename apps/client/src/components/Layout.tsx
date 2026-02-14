@@ -27,6 +27,7 @@ import { IMAGES } from '@/assets/images';
 import { TravelChatWindow } from '@/components/TravelChatWindow';
 import { NotificationBell } from '@/components/NotificationBell';
 import { useAuthStore } from '@/stores/authStore';
+import { PlanBadge } from '@/components/UsageBanner';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -186,7 +187,10 @@ export function Layout({ children }: LayoutProps) {
               </Avatar>
               {isSidebarOpen && (
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate text-sidebar-foreground">{user.name}</p>
+                  <div className="flex items-center gap-1">
+                    <p className="text-sm font-semibold truncate text-sidebar-foreground">{user.name}</p>
+                    <PlanBadge plan={user.plan || 'free'} />
+                  </div>
                   <p className="text-xs text-sidebar-foreground/60 truncate">{user.email}</p>
                 </div>
               )}

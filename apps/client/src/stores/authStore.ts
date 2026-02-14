@@ -6,6 +6,8 @@ interface AuthUser {
   id: number;
   email: string;
   name: string;
+  plan: 'free' | 'pro' | 'business';
+  plan_expires_at: string | null;
   created_at: string;
 }
 
