@@ -2,11 +2,13 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { processAgentRequest, processAgentRequestWithKnowledge, processAgentRequestWithKnowledgeStream } = require('./agents');
+const { processAgentRequest, processAgentRequestWithKnowledge, processAgentRequestWithKnowledgeStream, compressContext, detectQueryType } = require('./agents');
 const db = require('./db');
 const retriever = require('./retriever');
 const collector = require('./collector');
 const scheduler = require('./scheduler');
+const cache = require('./cache');
+const directAnswer = require('./direct-answer');
 require('dotenv').config();
 
 const priceTracker = require('./price-tracker');
@@ -114,7 +116,34 @@ app.post('/api/chat', async (req, res) => {
   // Priority context for Pro/Business — pass plan to agent for prompt differentiation
   const extraContext = { plan: userPlan, priority: userPlan !== 'free', planLevel: userPlan };
 
+  // ─── 토큰 절약 파이프라인 (비스트리밍 일반 질문에만 적용) ───
   const wantStream = (req.headers.accept || '').includes('text/event-stream');
+  const queryType = detectQueryType(message);
+  const isSimpleQuery = !wantStream && !/여행|계획|일정|코스|설계|짜줘/.test(message);
+
+  if (isSimpleQuery) {
+    // 1. 캐시 확인
+    const cached = await cache.get(message, userPlan);
+    if (cached) {
+      if (authUserId) logUsage(authUserId, 'chat', { source: 'cache', tokens: 0 }).catch(() => {});
+      return res.json({ reply: cached, goals: sessionGoals.get(sid), plan: userPlan, source: 'cache' });
+    }
+
+    // 2. 정형 질문 직접 응답
+    const direct = await directAnswer.handle(message);
+    if (direct) {
+      await cache.set(message, direct.response, { plan: userPlan, city: direct.city, category: direct.category });
+      if (authUserId) logUsage(authUserId, 'chat', { source: 'db', tokens: 0 }).catch(() => {});
+      let finalResponse = direct.response;
+      if (userPlan === 'free' && finalResponse.length > 100) {
+        finalResponse += '\n\n---\n💡 *Pro로 업그레이드하면 더 상세한 정보를 받을 수 있어요!*';
+      }
+      return res.json({ reply: finalResponse, goals: sessionGoals.get(sid), plan: userPlan, source: 'knowledge_db' });
+    }
+  }
+
+  // 3. 대화 컨텍스트 압축
+  const compressedCtx = compressContext(context);
 
   if (wantStream) {
     // SSE streaming response
@@ -124,7 +153,7 @@ app.post('/api/chat', async (req, res) => {
     res.flushHeaders();
 
     try {
-      const fullText = await processAgentRequestWithKnowledgeStream(message, context, { goals, ...extraContext }, (delta) => {
+      const fullText = await processAgentRequestWithKnowledgeStream(message, compressedCtx, { goals, ...extraContext }, (delta) => {
         res.write(`data: ${JSON.stringify({ type: 'delta', text: delta })}\n\n`);
       });
 
@@ -149,7 +178,7 @@ app.post('/api/chat', async (req, res) => {
   } else {
     // Non-streaming (legacy)
     try {
-      const response = await processAgentRequestWithKnowledge(message, context, { goals, ...extraContext });
+      const response = await processAgentRequestWithKnowledge(message, compressedCtx, { goals, ...extraContext });
 
       const responseGoals = extractGoals(response);
       if (responseGoals.length > 0) {
@@ -157,8 +186,12 @@ app.post('/api/chat', async (req, res) => {
         sessionGoals.set(sid, updatedGoals);
       }
 
-      // Log usage
-      if (authUserId) logUsage(authUserId, 'chat').catch(() => {});
+      // Log usage & cache AI response
+      if (authUserId) logUsage(authUserId, 'chat', { source: 'ai' }).catch(() => {});
+      // 일정 JSON이 아닌 일반 응답만 캐싱
+      if (!response.trim().startsWith('{')) {
+        cache.set(message, response, { plan: userPlan }).catch(() => {});
+      }
 
       let finalResponse = response;
       if (userPlan === 'free' && response.length > 100) {
@@ -355,9 +388,14 @@ function planLimitMiddleware(action) {
   };
 }
 
-async function logUsage(userId, action) {
+async function logUsage(userId, action, meta = {}) {
   const month = new Date().toISOString().slice(0, 7);
-  await db.query('INSERT INTO usage_logs (user_id, action, month) VALUES ($1, $2, $3)', [userId, action, month]);
+  const source = meta.source || 'ai';
+  const tokens = meta.tokens || 0;
+  await db.query(
+    'INSERT INTO usage_logs (user_id, action, month, source, tokens_used) VALUES ($1, $2, $3, $4, $5)',
+    [userId, action, month, source, tokens]
+  );
 }
 
 // ─── Auth Endpoints ───
@@ -671,6 +709,45 @@ app.get('/api/admin/stats/funnel', async (req, res) => {
     });
   } catch (err) {
     console.error('[Admin] funnel error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Token Usage Stats ───
+app.get('/api/admin/stats/token-usage', async (req, res) => {
+  try {
+    const [bySource, daily, totalTokens] = await Promise.all([
+      db.query(`
+        SELECT source, COUNT(*) as count, SUM(tokens_used) as total_tokens
+        FROM usage_logs WHERE action = 'chat' AND month = $1
+        GROUP BY source
+      `, [new Date().toISOString().slice(0, 7)]),
+      db.query(`
+        SELECT DATE(created_at) as date, source, COUNT(*) as count
+        FROM usage_logs WHERE action = 'chat' AND created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY DATE(created_at), source ORDER BY date
+      `),
+      db.query(`SELECT SUM(tokens_used) as total FROM usage_logs WHERE action = 'chat' AND month = $1`, [new Date().toISOString().slice(0, 7)]),
+    ]);
+    const cacheHitRate = bySource.rows.reduce((acc, r) => {
+      acc[r.source || 'ai'] = parseInt(r.count);
+      return acc;
+    }, {});
+    const totalReqs = Object.values(cacheHitRate).reduce((a, b) => a + b, 0);
+    const aiReqs = cacheHitRate.ai || 0;
+    const savedPct = totalReqs > 0 ? (((totalReqs - aiReqs) / totalReqs) * 100).toFixed(1) : 0;
+
+    res.json({
+      month: new Date().toISOString().slice(0, 7),
+      bySource: bySource.rows,
+      daily: daily.rows,
+      totalTokens: parseInt(totalTokens.rows[0]?.total || 0),
+      totalRequests: totalReqs,
+      aiRequests: aiReqs,
+      savedPercentage: parseFloat(savedPct),
+    });
+  } catch (err) {
+    console.error('[Admin] token-usage error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1024,6 +1101,36 @@ async function initDB() {
       `);
       console.log('[DB] city_info table ready');
 
+      // Response cache table
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS response_cache (
+          id SERIAL PRIMARY KEY,
+          query_hash VARCHAR(64) UNIQUE,
+          query_normalized TEXT,
+          response TEXT,
+          city TEXT,
+          category VARCHAR(50),
+          hits INTEGER DEFAULT 1,
+          created_at TIMESTAMP DEFAULT NOW(),
+          expires_at TIMESTAMP
+        )
+      `);
+      // Precompiled answers table
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS precompiled_answers (
+          id SERIAL PRIMARY KEY,
+          city VARCHAR(100),
+          category VARCHAR(50),
+          answer TEXT,
+          created_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(city, category)
+        )
+      `);
+      // Add token tracking columns to usage_logs
+      await db.query(`ALTER TABLE usage_logs ADD COLUMN IF NOT EXISTS tokens_used INTEGER DEFAULT 0`);
+      await db.query(`ALTER TABLE usage_logs ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT 'ai'`);
+      console.log('[DB] response_cache & precompiled_answers & usage tracking ready');
+
       // Seed city_info if empty
       const cityCount = await db.query('SELECT COUNT(*) as c FROM city_info');
       if (parseInt(cityCount.rows[0].c) === 0) {
@@ -1075,4 +1182,19 @@ initDB();
 app.listen(PORT, () => {
   console.log(`SVI Backend running on port ${PORT}`);
   scheduler.start();
+
+  // Precompile popular city answers (non-blocking)
+  setTimeout(async () => {
+    try {
+      const { precompileAll } = require('./precompile');
+      await precompileAll();
+    } catch (e) {
+      console.error('[Precompile] Startup error:', e.message);
+    }
+  }, 5000);
+
+  // Cache cleanup every 6 hours
+  setInterval(() => {
+    cache.cleanup().catch(() => {});
+  }, 6 * 60 * 60 * 1000);
 });

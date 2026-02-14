@@ -564,4 +564,104 @@ async function processAgentRequestWithKnowledgeStream(message, context = [], opt
   return processAgentRequestStream(enrichedMessage, context, options, onDelta);
 }
 
-module.exports = { processAgentRequest, processAgentRequestWithKnowledge, processAgentRequestStream, processAgentRequestWithKnowledgeStream };
+// ─── 컨텍스트 압축: 5턴 이상이면 오래된 대화를 요약 ───
+function compressContext(context) {
+  if (!context || context.length <= 6) return context; // 3턴(6메시지) 이하 그대로
+  const recent = context.slice(-6); // 최근 3턴 원문 유지
+  const older = context.slice(0, -6);
+  // AI 호출 없이 키워드 추출로 요약
+  const summary = older.map(m => {
+    const role = m.role === 'user' ? '사용자' : 'AI';
+    // 각 메시지에서 핵심만 추출 (처음 80자)
+    const content = (m.content || '').substring(0, 80).replace(/\n/g, ' ');
+    return `${role}: ${content}`;
+  }).join(' | ').substring(0, 300);
+  return [{ role: 'system', content: `[이전 대화 요약] ${summary}` }, ...recent];
+}
+
+// ─── 질문 유형별 최소 컨텍스트 빌드 ───
+function detectQueryType(message) {
+  const q = message.toLowerCase();
+  if (/맛집|음식|먹거리|뭐\s*먹|식당|레스토랑/.test(q)) return 'food';
+  if (/날씨|기온|기후|온도/.test(q)) return 'weather';
+  if (/교통|공항|이동|택시|지하철/.test(q)) return 'transport';
+  if (/비자|입국|여권/.test(q)) return 'visa';
+  if (/물가|가격|비용|얼마|환율/.test(q)) return 'price';
+  if (/관광지|볼거리|명소|어디\s*가/.test(q)) return 'attractions';
+  if (/여행|계획|일정|코스|설계/.test(q)) return 'itinerary';
+  return 'general';
+}
+
+async function buildMinimalCityContext(cityName, queryType) {
+  if (!db) return '';
+  try {
+    const res = await db.query('SELECT * FROM city_info WHERE city = $1', [cityName]);
+    if (res.rows.length === 0) return '';
+    const c = res.rows[0];
+
+    // 쿼리 유형별 필요 필드만 선택
+    const fieldMap = {
+      food: ['price_index'],
+      weather: ['weather_summary', 'best_season'],
+      transport: ['transport_info'],
+      visa: ['visa_info'],
+      price: ['price_index', 'currency'],
+      attractions: [],
+      general: ['overview', 'best_season', 'currency'],
+      itinerary: ['overview', 'weather_summary', 'best_season', 'price_index', 'currency', 'transport_info', 'visa_info'],
+    };
+
+    const fields = fieldMap[queryType] || fieldMap.general;
+    let ctx = `\n\n[도시 데이터: ${cityName} (${c.country})]\n`;
+
+    if (fields.includes('overview') && c.overview) ctx += `개요: ${c.overview}\n`;
+    if (fields.includes('weather_summary') && c.weather_summary) {
+      const ws = typeof c.weather_summary === 'string' ? JSON.parse(c.weather_summary) : c.weather_summary;
+      const now = new Date();
+      const monthNames = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+      const curMonth = monthNames[now.getMonth()];
+      const monthKey = Object.keys(ws).find(k => k.includes(curMonth) || k.includes(String(now.getMonth()+1)));
+      if (monthKey && ws[monthKey]) {
+        const w = ws[monthKey];
+        ctx += `날씨(${curMonth}): 최고 ${w.high || w.max || '?'}°C, 최저 ${w.low || w.min || '?'}°C\n`;
+      }
+    }
+    if (fields.includes('best_season') && c.best_season) ctx += `추천 시기: ${c.best_season}\n`;
+    if (fields.includes('currency') && c.currency) ctx += `통화: ${c.currency}\n`;
+    if (fields.includes('visa_info') && c.visa_info) ctx += `비자: ${c.visa_info}\n`;
+    if (fields.includes('price_index') && c.price_index) {
+      const pi = typeof c.price_index === 'string' ? JSON.parse(c.price_index) : c.price_index;
+      const parts = [];
+      if (pi.meal) parts.push(`식사 ${pi.meal}`);
+      if (pi.coffee) parts.push(`커피 ${pi.coffee}`);
+      if (parts.length > 0) ctx += `물가: ${parts.join(', ')}\n`;
+    }
+    if (fields.includes('transport_info') && c.transport_info) {
+      const ti = typeof c.transport_info === 'string' ? JSON.parse(c.transport_info) : c.transport_info;
+      if (ti.airport) ctx += `교통: ${ti.airport}\n`;
+      else if (ti.summary) ctx += `교통: ${ti.summary}\n`;
+    }
+
+    // 관련 장소만 주입
+    if (retriever) {
+      try {
+        const categoryFilter = queryType === 'food' ? 'restaurant' : queryType === 'attractions' ? 'attraction' : undefined;
+        const limit = queryType === 'itinerary' ? 10 : 6;
+        const places = await retriever.getPlacesForCity(cityName, { country: c.country, category: categoryFilter, limit });
+        if (places.length > 0) {
+          ctx += `주요 장소: ${places.map(p => p.name).join(', ')}\n`;
+        }
+      } catch (e) {}
+    }
+
+    return ctx;
+  } catch (e) {
+    return '';
+  }
+}
+
+module.exports = { 
+  processAgentRequest, processAgentRequestWithKnowledge, 
+  processAgentRequestStream, processAgentRequestWithKnowledgeStream,
+  compressContext, detectQueryType, buildMinimalCityContext
+};
