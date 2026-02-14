@@ -20,6 +20,7 @@ import Admin from "@/pages/Admin";
 import Pricing from "@/pages/Pricing";
 import CityGuide from "@/pages/CityGuide";
 import CityDetail from "@/pages/CityDetail";
+import TeamDashboard from "@/pages/TeamDashboard";
 
 /**
  * @description AI 멀티에이전트 여행 서비스 - TravelAgent AI
