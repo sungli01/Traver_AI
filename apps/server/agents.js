@@ -8,8 +8,105 @@ const anthropic = new Anthropic({
 // Knowledge DB integration
 let retriever = null;
 let priceVerifier = null;
+let db = null;
 try { retriever = require('./retriever'); } catch (e) { /* DB not available */ }
 try { priceVerifier = require('./price-verifier'); } catch (e) { /* price verifier not available */ }
+try { db = require('./db'); } catch (e) { /* DB not available */ }
+
+// City name cache for DB-based matching
+let _cityNameCache = null;
+let _cityNameCacheTime = 0;
+const CITY_CACHE_TTL = 5 * 60 * 1000; // 5 min
+
+async function getCityNameCache() {
+  if (_cityNameCache && Date.now() - _cityNameCacheTime < CITY_CACHE_TTL) return _cityNameCache;
+  if (!db) return [];
+  try {
+    const res = await db.query('SELECT city, country FROM city_info');
+    _cityNameCache = res.rows;
+    _cityNameCacheTime = Date.now();
+    return _cityNameCache;
+  } catch (e) { return []; }
+}
+
+function matchCitiesFromDB(message, cityList) {
+  const lower = message.toLowerCase();
+  const matched = [];
+  for (const row of cityList) {
+    if (lower.includes(row.city.toLowerCase())) {
+      matched.push(row);
+    }
+  }
+  return matched;
+}
+
+async function buildCityInfoContext(cityName) {
+  if (!db) return '';
+  try {
+    const res = await db.query('SELECT * FROM city_info WHERE city = $1', [cityName]);
+    if (res.rows.length === 0) return '';
+    const c = res.rows[0];
+    
+    const now = new Date();
+    const monthNames = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+    const curMonth = monthNames[now.getMonth()];
+    
+    let weatherLine = '';
+    if (c.weather_summary) {
+      const ws = typeof c.weather_summary === 'string' ? JSON.parse(c.weather_summary) : c.weather_summary;
+      const monthKey = Object.keys(ws).find(k => k.includes(curMonth) || k.includes(String(now.getMonth()+1)));
+      if (monthKey && ws[monthKey]) {
+        const w = ws[monthKey];
+        weatherLine = `날씨(${curMonth}): 최고 ${w.high || w.max || '?'}°C, 최저 ${w.low || w.min || '?'}°C`;
+      }
+    }
+    
+    let priceLine = '';
+    if (c.price_index) {
+      const pi = typeof c.price_index === 'string' ? JSON.parse(c.price_index) : c.price_index;
+      const parts = [];
+      if (pi.meal) parts.push(`식사 ${pi.meal}`);
+      if (pi.coffee) parts.push(`커피 ${pi.coffee}`);
+      if (pi.beer) parts.push(`맥주 ${pi.beer}`);
+      priceLine = parts.length > 0 ? `물가: ${parts.join(', ')}` : '';
+    }
+    
+    let transportLine = '';
+    if (c.transport_info) {
+      const ti = typeof c.transport_info === 'string' ? JSON.parse(c.transport_info) : c.transport_info;
+      if (ti.airport) transportLine = `교통: ${ti.airport}`;
+      else if (ti.summary) transportLine = `교통: ${ti.summary}`;
+    }
+
+    // Get top places
+    let placesLine = '';
+    if (retriever) {
+      try {
+        const places = await retriever.getPlacesForCity(cityName, { country: c.country, limit: 10 });
+        if (places.length > 0) {
+          placesLine = `주요 관광지: ${places.map(p => p.name).join(', ')}`;
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    let ctx = `\n\n[도시 데이터: ${cityName}]\n`;
+    ctx += `개요: ${c.overview || ''}\n`;
+    if (weatherLine) ctx += `${weatherLine}\n`;
+    if (priceLine) ctx += `${priceLine}\n`;
+    if (transportLine) ctx += `${transportLine}\n`;
+    if (c.visa_info) ctx += `비자: ${c.visa_info}\n`;
+    if (c.best_season) ctx += `추천 시기: ${c.best_season}\n`;
+    if (c.currency) ctx += `통화: ${c.currency}\n`;
+    if (c.language) ctx += `언어: ${c.language}\n`;
+    if (c.local_tips && c.local_tips.length > 0) ctx += `현지 팁: ${c.local_tips.join(' / ')}\n`;
+    if (placesLine) ctx += `${placesLine}\n`;
+    
+    return ctx;
+  } catch (e) {
+    console.error('[CityInfo] Error:', e.message);
+    return '';
+  }
+}
 
 /**
  * Concierge Agent: 사용자의 요청을 분석하고 적절한 에이전트에게 전달
@@ -291,29 +388,44 @@ function extractCityFromMessage(message) {
 
 // Enhanced version that injects DB context
 async function processAgentRequestWithKnowledge(message, context = [], options = {}) {
-  if (!retriever) return processAgentRequest(message, context, options);
+  let enrichedMessage = message;
 
   try {
-    const cityInfo = extractCityFromMessage(message);
+    // 1. Try DB-based city matching first (covers 300+ cities)
+    const cityList = await getCityNameCache();
+    const dbMatches = matchCitiesFromDB(message, cityList);
+    
+    // 2. Fall back to hardcoded patterns if no DB match
+    const cityInfo = dbMatches.length > 0 ? dbMatches[0] : extractCityFromMessage(message);
+    
     if (cityInfo) {
-      // Background price verification (non-blocking)
-      if (priceVerifier) {
-        retriever.getPlacesForCity(cityInfo.city, { country: cityInfo.country }).then(places => {
-          priceVerifier.verifyPrices(cityInfo.city, places).catch(e => 
-            console.error('[PriceVerifier] Background verify error:', e.message));
-        }).catch(() => {});
-      }
+      const cityName = cityInfo.city;
+      const countryName = cityInfo.country;
 
-      const dbContext = await retriever.buildContext(cityInfo.city, cityInfo.country);
-      if (dbContext) {
-        const enrichedMessage = message + dbContext;
-        return processAgentRequest(enrichedMessage, context, options);
+      // Inject city_info context
+      const cityCtx = await buildCityInfoContext(cityName);
+      if (cityCtx) enrichedMessage += cityCtx;
+
+      // Inject verified places context (retriever)
+      if (retriever) {
+        try {
+          const placesCtx = await retriever.buildContext(cityName, countryName);
+          if (placesCtx) enrichedMessage += placesCtx;
+        } catch (e) { /* ignore */ }
+
+        // Background price verification (non-blocking)
+        if (priceVerifier) {
+          retriever.getPlacesForCity(cityName, { country: countryName }).then(places => {
+            priceVerifier.verifyPrices(cityName, places).catch(e => 
+              console.error('[PriceVerifier] Background verify error:', e.message));
+          }).catch(() => {});
+        }
       }
     }
   } catch (err) {
     console.error('[Knowledge] Context injection error:', err.message);
   }
-  return processAgentRequest(message, context, options);
+  return processAgentRequest(enrichedMessage, context, options);
 }
 
 // Streaming version — yields text deltas via callback
@@ -418,29 +530,38 @@ ${planPrompt}${goalsSection}
 }
 
 async function processAgentRequestWithKnowledgeStream(message, context = [], options = {}, onDelta) {
-  if (!retriever) return processAgentRequestStream(message, context, options, onDelta);
+  let enrichedMessage = message;
 
   try {
-    const cityInfo = extractCityFromMessage(message);
-    if (cityInfo) {
-      // Background price verification (non-blocking)
-      if (priceVerifier) {
-        retriever.getPlacesForCity(cityInfo.city, { country: cityInfo.country }).then(places => {
-          priceVerifier.verifyPrices(cityInfo.city, places).catch(e =>
-            console.error('[PriceVerifier] Background verify error:', e.message));
-        }).catch(() => {});
-      }
+    const cityList = await getCityNameCache();
+    const dbMatches = matchCitiesFromDB(message, cityList);
+    const cityInfo = dbMatches.length > 0 ? dbMatches[0] : extractCityFromMessage(message);
 
-      const dbContext = await retriever.buildContext(cityInfo.city, cityInfo.country);
-      if (dbContext) {
-        const enrichedMessage = message + dbContext;
-        return processAgentRequestStream(enrichedMessage, context, options, onDelta);
+    if (cityInfo) {
+      const cityName = cityInfo.city;
+      const countryName = cityInfo.country;
+
+      const cityCtx = await buildCityInfoContext(cityName);
+      if (cityCtx) enrichedMessage += cityCtx;
+
+      if (retriever) {
+        try {
+          const placesCtx = await retriever.buildContext(cityName, countryName);
+          if (placesCtx) enrichedMessage += placesCtx;
+        } catch (e) { /* ignore */ }
+
+        if (priceVerifier) {
+          retriever.getPlacesForCity(cityName, { country: countryName }).then(places => {
+            priceVerifier.verifyPrices(cityName, places).catch(e =>
+              console.error('[PriceVerifier] Background verify error:', e.message));
+          }).catch(() => {});
+        }
       }
     }
   } catch (err) {
     console.error('[Knowledge] Context injection error:', err.message);
   }
-  return processAgentRequestStream(message, context, options, onDelta);
+  return processAgentRequestStream(enrichedMessage, context, options, onDelta);
 }
 
 module.exports = { processAgentRequest, processAgentRequestWithKnowledge, processAgentRequestStream, processAgentRequestWithKnowledgeStream };
