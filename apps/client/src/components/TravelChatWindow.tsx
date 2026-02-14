@@ -3,6 +3,7 @@ import { MessageSquare, Send, X, Minimize2, Loader2, CheckCircle2 } from 'lucide
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useSecurityStore } from '@/stores/securityStore';
+import { useAuthStore } from '@/stores/authStore';
 import { ItineraryCard, tryParseItinerary, type Itinerary } from '@/components/ItineraryCard';
 
 interface ChatMessage {
@@ -32,6 +33,8 @@ export function TravelChatWindow() {
   const stepTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const { maskingEnabled, maskPII, addLog } = useSecurityStore();
+  const { user, token } = useAuthStore();
+  const userPlan = user?.plan || 'free';
 
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {

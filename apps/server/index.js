@@ -111,10 +111,8 @@ app.post('/api/chat', async (req, res) => {
   }
   sessionGoals.set(sid, goals);
 
-  // Priority context for Pro/Business
-  const extraContext = (userPlan === 'pro' || userPlan === 'business')
-    ? { priority: true, planLevel: userPlan }
-    : {};
+  // Priority context for Pro/Business — pass plan to agent for prompt differentiation
+  const extraContext = { plan: userPlan, priority: userPlan !== 'free', planLevel: userPlan };
 
   const wantStream = (req.headers.accept || '').includes('text/event-stream');
 
@@ -162,7 +160,15 @@ app.post('/api/chat', async (req, res) => {
       // Log usage
       if (authUserId) logUsage(authUserId, 'chat').catch(() => {});
 
-      res.json({ reply: response, goals: sessionGoals.get(sid) });
+      let finalResponse = response;
+      if (userPlan === 'free' && response.length > 100) {
+        finalResponse += '
+
+---
+💡 *Pro로 업그레이드하면 현지인만 아는 숨겨진 맛집, 구체적인 가격 정보, 시간대별 추천 등 더 상세한 정보를 받을 수 있어요!*';
+      }
+
+      res.json({ reply: finalResponse, goals: sessionGoals.get(sid), plan: userPlan });
     } catch (err) {
       console.error('[Chat] error:', err.message);
       res.status(500).json({ error: 'AI 응답 생성 중 오류가 발생했습니다.' });
@@ -787,6 +793,97 @@ app.get('/api/purchase/history', async (req, res) => {
   }
 });
 
+
+// ─── API Key Endpoints (Business only) ───
+app.post('/api/apikeys', authMiddleware, async (req, res) => {
+  try {
+    const userRes = await db.query('SELECT plan FROM users WHERE id = ', [req.userId]);
+    const plan = userRes.rows[0]?.plan || 'free';
+    if (plan !== 'business') return res.status(403).json({ error: 'Business 플랜 전용 기능입니다' });
+    
+    const { name } = req.body;
+    const crypto = require('crypto');
+    const apiKey = 'ta_' + crypto.randomUUID().replace(/-/g, '');
+    await db.query('INSERT INTO api_keys (user_id, api_key, name) VALUES (, , )', [req.userId, apiKey, name || 'Default']);
+    res.json({ success: true, apiKey, name: name || 'Default' });
+  } catch (err) {
+    console.error('[APIKey] create error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/apikeys', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT id, api_key, name, created_at, last_used_at, is_active FROM api_keys WHERE user_id =  ORDER BY created_at DESC',
+      [req.userId]
+    );
+    res.json({ keys: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/apikeys/:id', authMiddleware, async (req, res) => {
+  try {
+    await db.query('DELETE FROM api_keys WHERE id =  AND user_id = ', [req.params.id, req.userId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Team Endpoints (Business / Pro) ───
+app.get('/api/team', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT tm.id, tm.member_email, tm.role, tm.invited_at, tm.accepted_at, u.name as member_name
+       FROM team_members tm LEFT JOIN users u ON tm.member_id = u.id
+       WHERE tm.owner_id =  ORDER BY tm.invited_at DESC`,
+      [req.userId]
+    );
+    res.json({ members: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/team/invite', authMiddleware, async (req, res) => {
+  try {
+    const userRes = await db.query('SELECT plan FROM users WHERE id = ', [req.userId]);
+    const plan = userRes.rows[0]?.plan || 'free';
+    
+    const maxMembers = plan === 'business' ? 999 : plan === 'pro' ? 3 : 0;
+    if (maxMembers === 0) return res.status(403).json({ error: '팀 기능은 Pro 이상 플랜에서 사용 가능합니다' });
+    
+    const countRes = await db.query('SELECT COUNT(*) as cnt FROM team_members WHERE owner_id = ', [req.userId]);
+    if (parseInt(countRes.rows[0].cnt) >= maxMembers) {
+      return res.status(403).json({ error: `${plan} 플랜의 팀원 한도(${maxMembers}명)에 도달했습니다` });
+    }
+    
+    const { email } = req.body;
+    const memberRes = await db.query('SELECT id FROM users WHERE email = ', [email]);
+    const memberId = memberRes.rows[0]?.id || null;
+    
+    await db.query(
+      'INSERT INTO team_members (owner_id, member_email, member_id) VALUES (, , ) ON CONFLICT (owner_id, member_email) DO NOTHING',
+      [req.userId, email, memberId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/team/:id', authMiddleware, async (req, res) => {
+  try {
+    await db.query('DELETE FROM team_members WHERE id =  AND owner_id = ', [req.params.id, req.userId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 4000;
 
 // Create users table & test DB connection on startup
@@ -821,7 +918,32 @@ async function initDB() {
           created_at TIMESTAMP DEFAULT NOW()
         )
       `);
-      console.log('[DB] plan & usage_logs ready');
+      // API keys table for Business plan
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS api_keys (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id),
+          api_key VARCHAR(255) UNIQUE NOT NULL,
+          name VARCHAR(100) DEFAULT 'Default',
+          created_at TIMESTAMP DEFAULT NOW(),
+          last_used_at TIMESTAMP,
+          is_active BOOLEAN DEFAULT true
+        )
+      `);
+      // Team members table for Business plan
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS team_members (
+          id SERIAL PRIMARY KEY,
+          owner_id INTEGER REFERENCES users(id),
+          member_email VARCHAR(255) NOT NULL,
+          member_id INTEGER REFERENCES users(id),
+          role VARCHAR(20) DEFAULT 'member',
+          invited_at TIMESTAMP DEFAULT NOW(),
+          accepted_at TIMESTAMP,
+          UNIQUE(owner_id, member_email)
+        )
+      `);
+      console.log('[DB] plan & usage_logs & api_keys & team_members ready');
       console.log('[DB] users table ready (with OAuth columns)');
 
       // Price tracking tables

@@ -30,8 +30,8 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 export function PlanBadge({ plan }: { plan: string }) {
-  if (plan === 'pro') return <Badge className="bg-primary text-primary-foreground gap-1"><Crown className="h-3 w-3" />Pro</Badge>;
-  if (plan === 'business') return <Badge className="bg-amber-500 text-white gap-1"><Building2 className="h-3 w-3" />Business</Badge>;
+  if (plan === 'pro') return <Badge className="bg-blue-600 text-white gap-1 shadow-sm shadow-blue-500/30"><Crown className="h-3 w-3" />Pro</Badge>;
+  if (plan === 'business') return <Badge className="bg-gradient-to-r from-amber-500 to-yellow-500 text-white gap-1 shadow-sm shadow-amber-500/30"><Building2 className="h-3 w-3" />Business</Badge>;
   return null;
 }
 

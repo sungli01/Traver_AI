@@ -120,6 +120,9 @@ const App = () => {
               <Route path={ROUTE_PATHS.CITIES} element={<CityGuide />} />
               <Route path={ROUTE_PATHS.CITY_DETAIL} element={<CityDetail />} />
 
+              {/* 팀 대시보드 (Pro/Business) */}
+              <Route path={ROUTE_PATHS.TEAM_DASHBOARD} element={<TeamDashboard />} />
+
               {/* 공유받은 일정 import */}
               <Route 
                 path="/shared/*" 

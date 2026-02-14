@@ -16,7 +16,9 @@ import {
   User,
   Globe,
   Settings2,
-  CreditCard as CreditCardIcon
+  CreditCard as CreditCardIcon,
+  Users,
+  Crown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ROUTE_PATHS } from '@/lib/index';
@@ -42,6 +44,7 @@ const NAV_ITEMS = [
   { name: '도시 가이드', path: ROUTE_PATHS.CITIES, icon: Globe },
   { name: '요금제', path: ROUTE_PATHS.PRICING, icon: CreditCardIcon },
   { name: '관리자', path: ROUTE_PATHS.ADMIN, icon: Settings2 },
+  { name: '설정', path: ROUTE_PATHS.SETTINGS, icon: Settings2 },
 ];
 
 const SIDEBAR_AGENTS = [
@@ -158,7 +161,7 @@ export function Layout({ children }: LayoutProps) {
         </div>
 
         <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map((item) => (
+          {[...NAV_ITEMS, ...((user?.plan === 'pro' || user?.plan === 'business') ? [{ name: '팀 대시보드', path: ROUTE_PATHS.TEAM_DASHBOARD, icon: Users }] : [])].map((item) => (
             <NavLink
               key={item.path}
               to={item.path}

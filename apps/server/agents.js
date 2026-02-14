@@ -14,6 +14,13 @@ try { priceVerifier = require('./price-verifier'); } catch (e) { /* price verifi
 /**
  * Concierge Agent: 사용자의 요청을 분석하고 적절한 에이전트에게 전달
  */
+// Plan-based system prompt prefixes
+const PLAN_PROMPTS = {
+  free: '[Free 플랜 사용자] 기본 수준의 여행 정보를 제공하세요. 주요 관광지 위주로 간략하게 안내합니다.',
+  pro: '[Pro 프리미엄 회원] 이 사용자는 Pro 회원입니다. 현지인만 아는 숨겨진 맛집, 구체적인 가격 정보(메뉴별 가격대), 최적 이동 경로와 소요시간, 시간대별 추천(아침/점심/저녁 골든타임), 날씨 맞춤 옷차림 제안, 현지 할인 팁, 줄 안 서는 시간대, 사진 명소 등 프리미엄 수준의 상세하고 실용적인 정보를 제공하세요. 매 장소마다 "💡 Pro Tip"을 추가하세요.',
+  business: '[Business VIP 회원] 이 사용자는 VIP 비즈니스 회원입니다. 비즈니스 출장/럭셔리 여행에 특화된 추천을 제공하세요. 비즈니스 호텔(미팅룸/라운지 유무), 공항 라운지 접근성, 비즈니스석 항공편, 미팅에 적합한 레스토랑(프라이빗 룸), 고급 교통수단(리무진/전용차량), 비즈니스 센터가 있는 카페, VIP 전용 투어, 컨시어지 서비스 정보를 포함하세요. 매 장소마다 "👑 VIP Note"를 추가하세요.',
+};
+
 async function processAgentRequest(message, context = [], options = {}) {
   try {
     // Auto-detect message type from content if not explicitly provided
@@ -34,10 +41,16 @@ async function processAgentRequest(message, context = [], options = {}) {
       ? `\n\n## 현재 여행 목표 (절대 무시하지 마라 — 모든 일정에 반드시 반영할 것)\n${goals.map(g => `- ${g}`).join('\n')}\n`
       : '';
 
+    // Plan-based prompt injection
+    const userPlan = options.plan || 'free';
+    const planPrompt = PLAN_PROMPTS[userPlan] || PLAN_PROMPTS.free;
+
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: maxTokens,
-      system: `당신은 TravelAgent AI의 전문 여행 컨시어지입니다.${goalsSection}
+      system: `당신은 TravelAgent AI의 전문 여행 컨시어지입니다.
+
+${planPrompt}${goalsSection}
 
 ## 핵심 규칙
 사용자가 여행 계획을 요청하거나, "설계해줘", "계획해줘", "일정", "[기존 일정 컨텍스트]" 등의 키워드가 포함되면, 반드시 아래 JSON 형식으로만 응답하세요. JSON 외의 텍스트를 절대 포함하지 마세요. 텍스트 요약 금지.
@@ -322,8 +335,14 @@ async function processAgentRequestStream(message, context = [], options = {}, on
       ? `\n\n## 현재 여행 목표 (절대 무시하지 마라 — 모든 일정에 반드시 반영할 것)\n${goals.map(g => `- ${g}`).join('\n')}\n`
       : '';
 
+    // Plan-based prompt injection  
+    const userPlan = options.plan || 'free';
+    const planPrompt = PLAN_PROMPTS[userPlan] || PLAN_PROMPTS.free;
+
     // Use the same system prompt as processAgentRequest
-    const systemPrompt = `당신은 TravelAgent AI의 전문 여행 컨시어지입니다.${goalsSection}
+    const systemPrompt = `당신은 TravelAgent AI의 전문 여행 컨시어지입니다.
+
+${planPrompt}${goalsSection}
 
 ## 핵심 규칙
 사용자가 여행 계획을 요청하거나, "설계해줘", "계획해줘", "일정", "[기존 일정 컨텍스트]" 등의 키워드가 포함되면, 반드시 아래 JSON 형식으로만 응답하세요. JSON 외의 텍스트를 절대 포함하지 마세요. 텍스트 요약 금지.

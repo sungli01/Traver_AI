@@ -3,6 +3,7 @@ import { Send, Loader2, CheckCircle2, ArrowLeft, MessageSquare, Map as MapIcon, 
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useSecurityStore } from '@/stores/securityStore';
+import { useAuthStore } from '@/stores/authStore';
 import { ItineraryCard, tryParseItinerary, type Itinerary } from '@/components/ItineraryCard';
 import { ScheduleEditor, itineraryToSchedule, saveTrip, type ScheduleData } from '@/components/ScheduleEditor';
 import { ScheduleMap } from '@/components/ScheduleMap';
@@ -30,6 +31,40 @@ interface FullScreenChatProps {
   onScheduleSaved?: () => void;
 }
 
+
+function PlanChatBanner({ plan }: { plan: string }) {
+  if (plan === 'business') {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border border-amber-500/20 rounded-xl mx-4 mb-2">
+        <span className="text-lg">👑</span>
+        <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">전담 컨시어지 모드 · Business VIP</span>
+      </div>
+    );
+  }
+  if (plan === 'pro') {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/20 rounded-xl mx-4 mb-2">
+        <span className="text-lg">⚡</span>
+        <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">Pro 우선 응답 활성화</span>
+      </div>
+    );
+  }
+  return null;
+}
+
+function ProFeatureLock({ feature, children }: { feature: string; children: React.ReactNode }) {
+  return (
+    <div className="relative">
+      <div className="filter blur-[2px] pointer-events-none select-none">{children}</div>
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/60 rounded-xl">
+        <div className="text-2xl mb-1">🔒</div>
+        <p className="text-xs font-semibold text-muted-foreground">{feature}</p>
+        <p className="text-[10px] text-muted-foreground">Pro에서 사용 가능</p>
+      </div>
+    </div>
+  );
+}
+
 export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: FullScreenChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -46,6 +81,8 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
   const initialSent = useRef(false);
 
   const { maskingEnabled, maskPII, addLog } = useSecurityStore();
+  const { user, token } = useAuthStore();
+  const userPlan = user?.plan || 'free';
 
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
@@ -126,7 +163,7 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
 
       const response = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json',  },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ message: messageToSend, context: contextMsgs, type: msgType, sessionId: sessionIdRef.current, goals: sessionGoals }),
       });
 
@@ -359,7 +396,7 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
     try {
       const res = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json',  },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ message: contextMsg, type: msgType }),
       });
 
@@ -609,6 +646,9 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
           </div>
         )}
       </div>
+
+      {/* Plan Banner */}
+      <PlanChatBanner plan={userPlan} />
 
       {/* Input */}
       <div className="p-3 border-t border-border">

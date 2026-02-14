@@ -10,6 +10,8 @@ interface ShareButtonProps {
   schedule: ScheduleData;
   /** Compact mode for trip cards */
   compact?: boolean;
+  /** User plan for feature gating */
+  userPlan?: string;
 }
 
 function buildShareText(s: ScheduleData) {
@@ -140,7 +142,7 @@ function getSortedSnsOptions(): SnsOption[] {
   });
 }
 
-export function ShareButton({ schedule, compact }: ShareButtonProps) {
+export function ShareButton({ schedule, compact, userPlan = "free" }: ShareButtonProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -230,7 +232,7 @@ export function ShareButton({ schedule, compact }: ShareButtonProps) {
           {/* Team share section */}
           <div className="border-t border-gray-100 dark:border-gray-800">
             <div className="px-4 py-3">
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">🤝 단체 공유 (회람)</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">🤝 단체 공유 (회람) {userPlan === 'free' ? <span className="text-[10px] text-amber-500">Pro+</span> : userPlan === 'pro' ? <span className="text-[10px] text-blue-500">최대 3명</span> : <span className="text-[10px] text-amber-500">무제한</span>}</p>
               <p className="text-[11px] text-muted-foreground mb-2">링크를 받은 사람이 일정을 자신의 계정에 복사하고 개별 결제할 수 있습니다.</p>
               <button
                 className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary/10 text-primary rounded-xl text-xs font-semibold hover:bg-primary/20 transition-colors"

@@ -12,6 +12,7 @@ export const ROUTE_PATHS = {
   PRICING: '/pricing',
   CITIES: '/cities',
   CITY_DETAIL: '/city/:cityName',
+  TEAM_DASHBOARD: '/team',
 } as const;
 
 // 멀티에이전트 시스템 타입

@@ -39,6 +39,8 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuthStore } from '@/stores/authStore';
+import { Key, Copy, RefreshCw, Check, Trash2 } from 'lucide-react';
 
 const SAMPLE_USER: UserType = {
   id: 'user-123',
@@ -62,6 +64,115 @@ const SAMPLE_USER: UserType = {
     lastSecurityAudit: '2026-02-08 10:00:00',
   },
 };
+
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
+function ApiKeySection() {
+  const { user, token } = useAuthStore();
+  const { toast } = useToast();
+  const [keys, setKeys] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [copiedId, setCopiedId] = React.useState<string | null>(null);
+  const plan = user?.plan || 'free';
+
+  const fetchKeys = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/apikeys`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setKeys(data.keys || []);
+    } catch { /* */ }
+  };
+
+  React.useEffect(() => { fetchKeys(); }, [token]);
+
+  const createKey = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/apikeys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: 'API Key ' + (keys.length + 1) }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: 'API 키 생성 완료', description: '새 API 키가 생성되었습니다.' });
+        fetchKeys();
+      } else {
+        toast({ title: '오류', description: data.error, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: '오류', description: '서버 연결 실패', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteKey = async (id: number) => {
+    await fetch(`${API_BASE_URL}/api/apikeys/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    fetchKeys();
+  };
+
+  const copyKey = (key: string, id: string) => {
+    navigator.clipboard.writeText(key);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  if (plan !== 'business') {
+    return (
+      <Card className="border-none shadow-xl shadow-black/5 bg-card/50 backdrop-blur-sm">
+        <CardContent className="py-12 text-center space-y-4">
+          <div className="text-5xl">🔒</div>
+          <h3 className="text-lg font-bold">API 키는 Business 전용 기능입니다</h3>
+          <p className="text-sm text-muted-foreground">Business 플랜으로 업그레이드하여 API 접근 권한을 얻으세요.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-none shadow-xl shadow-black/5 bg-card/50 backdrop-blur-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Key className="w-5 h-5" /> API 키 관리</CardTitle>
+        <CardDescription>외부 서비스에서 TravelAgent API에 접근할 수 있는 키를 관리합니다.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Button onClick={createKey} disabled={loading} className="gap-2">
+          <Key className="w-4 h-4" /> 새 API 키 생성
+        </Button>
+        {keys.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">아직 생성된 API 키가 없습니다.</p>
+        ) : (
+          <div className="space-y-2">
+            {keys.map((k: any) => (
+              <div key={k.id} className="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/20">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">{k.name}</p>
+                  <p className="text-xs font-mono text-muted-foreground truncate">{k.api_key.slice(0, 12)}{'*'.repeat(20)}</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => copyKey(k.api_key, String(k.id))}>
+                    {copiedId === String(k.id) ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => deleteKey(k.id)}>
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Settings() {
   const { toast } = useToast();
@@ -118,6 +229,12 @@ export default function Settings() {
               className="justify-start w-full px-4 py-3 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
             >
               <CreditCard className="w-4 h-4 mr-3" /> 결제 수단
+            </TabsTrigger>
+            <TabsTrigger 
+              value="apikeys" 
+              className="justify-start w-full px-4 py-3 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
+            >
+              <Key className="w-4 h-4 mr-3" /> API 키
             </TabsTrigger>
             <Separator className="my-2" />
             <Button variant="ghost" className="justify-start text-destructive hover:text-destructive hover:bg-destructive/10">
@@ -280,6 +397,9 @@ export default function Settings() {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+            <TabsContent value="apikeys" className="m-0">
+              <ApiKeySection />
             </TabsContent>
           </div>
         </div>

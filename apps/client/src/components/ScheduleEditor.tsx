@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { ActivityChatPanel } from '@/components/ActivityChatPanel';
 import { ShareButton } from '@/components/ShareButton';
+import { useAuthStore } from '@/stores/authStore';
+import { FileDown, Lock } from 'lucide-react';
 import { PriceTracker } from '@/components/PriceTracker';
 import { PurchaseApproval } from '@/components/PurchaseApproval';
 import { Button } from '@/components/ui/button';
@@ -614,6 +616,8 @@ export function ScheduleEditor({
   const [data, setData] = useState<ScheduleData>(schedule);
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set(data.days.map(d => d.id)));
   const [saved, setSaved] = useState(false);
+  const { user } = useAuthStore();
+  const userPlan = user?.plan || 'free';
   const [deleteDayTarget, setDeleteDayTarget] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentType, setPaymentType] = useState<'total' | 'per-person'>('total');
@@ -718,7 +722,16 @@ export function ScheduleEditor({
               <MessageSquare className="w-3.5 h-3.5" /> AI에게 수정 요청
             </Button>
           )}
-          <ShareButton schedule={data} />
+          <ShareButton schedule={data} userPlan={userPlan} />
+          {userPlan === 'free' ? (
+            <Button variant="outline" size="sm" className="rounded-xl gap-1.5 text-xs opacity-50 cursor-not-allowed" title="Pro 전용 기능" disabled>
+              <Lock className="w-3.5 h-3.5" /> PDF
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" className="rounded-xl gap-1.5 text-xs" onClick={() => window.print()} title="PDF 다운로드">
+              <FileDown className="w-3.5 h-3.5" /> PDF
+            </Button>
+          )}
           <Button size="sm" className="rounded-xl gap-1.5 text-xs" onClick={handleSave}>
             <Save className="w-3.5 h-3.5" /> {saved ? '저장됨 ✓' : '저장'}
           </Button>
