@@ -142,7 +142,8 @@ async function processAgentRequest(message, context = [], options = {}) {
     const userPlan = options.plan || 'free';
     const planPrompt = PLAN_PROMPTS[userPlan] || PLAN_PROMPTS.free;
 
-    const response = await anthropic.messages.create({
+    // Wrap with 25s timeout to stay under Railway's 30s limit
+    const apiPromise = anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: maxTokens,
       system: `당신은 TravelAgent AI의 전문 여행 컨시어지입니다.
@@ -323,6 +324,20 @@ ${planPrompt}${goalsSection}
         { role: "user", content: message }
       ],
     });
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('TIMEOUT')), 25000)
+    );
+
+    let response;
+    try {
+      response = await Promise.race([apiPromise, timeoutPromise]);
+    } catch (timeoutErr) {
+      if (timeoutErr.message === 'TIMEOUT') {
+        return '⏳ 일정 생성에 시간이 걸리고 있습니다. 잠시 후 다시 시도해주세요. 더 짧은 일정이나 구체적인 도시를 지정하면 빠르게 응답할 수 있어요!';
+      }
+      throw timeoutErr;
+    }
     return response.content[0].text;
   } catch (error) {
     console.error("Agent Error:", error);
@@ -389,6 +404,7 @@ function extractCityFromMessage(message) {
 // Enhanced version that injects DB context
 async function processAgentRequestWithKnowledge(message, context = [], options = {}) {
   let enrichedMessage = message;
+  const isItinerary = /여행|계획|일정|코스|설계|짜줘/.test(message);
 
   try {
     // 1. Try DB-based city matching first (covers 300+ cities)
@@ -406,11 +422,19 @@ async function processAgentRequestWithKnowledge(message, context = [], options =
       const cityCtx = await buildCityInfoContext(cityName);
       if (cityCtx) enrichedMessage += cityCtx;
 
-      // Inject verified places context (retriever)
+      // Inject verified places context (retriever) — limit for itinerary requests
       if (retriever) {
         try {
-          const placesCtx = await retriever.buildContext(cityName, countryName);
-          if (placesCtx) enrichedMessage += placesCtx;
+          if (isItinerary) {
+            // Limit context for itinerary to avoid timeout
+            const places = await retriever.getPlacesForCity(cityName, { country: countryName, limit: 5 });
+            if (places.length > 0) {
+              enrichedMessage += `\n\n[검증된 장소 데이터]\n${places.map(p => `- ${p.name} (${p.category || ''}) ${p.admission || ''}`).join('\n')}`;
+            }
+          } else {
+            const placesCtx = await retriever.buildContext(cityName, countryName);
+            if (placesCtx) enrichedMessage += placesCtx;
+          }
         } catch (e) { /* ignore */ }
 
         // Background price verification (non-blocking)
@@ -425,6 +449,12 @@ async function processAgentRequestWithKnowledge(message, context = [], options =
   } catch (err) {
     console.error('[Knowledge] Context injection error:', err.message);
   }
+
+  // For itinerary generation, force lower max_tokens
+  if (isItinerary && !options.type) {
+    options.type = 'generate';
+  }
+
   return processAgentRequest(enrichedMessage, context, options);
 }
 

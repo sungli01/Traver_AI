@@ -185,7 +185,24 @@ const handlers = {
   },
 };
 
+// Quick greeting/small-talk patterns — no AI call needed
+const QUICK_PATTERNS = [
+  { regex: /^(안녕|하이|헬로|hello|hi)\s*[!?.]?\s*$/i, response: '안녕하세요! 🌍 여행 계획이 있으시면 도시와 일정을 알려주세요. 무엇을 도와드릴까요?' },
+  { regex: /^(고마워|감사|땡큐|thanks|thank you)/i, response: '천만에요! 😊 더 궁금한 게 있으면 언제든 물어보세요!' },
+  { regex: /^(뭐\s*할\s*수\s*있어|뭐\s*도와|기능|할\s*수\s*있는\s*것|help)/i, response: '저는 여행 전문 AI에요! 🧳\n\n✈️ 맞춤 여행 일정 생성\n🏛️ 도시별 관광지·맛집 추천\n🌤️ 날씨·비자·물가 정보\n💰 예산별 여행 설계\n\n"도쿄 3박4일 여행 계획 세워줘" 처럼 말해보세요!' },
+  { regex: /^(ㅎㅇ|ㅎㅎ|ㅋㅋ)\s*$/i, response: '안녕하세요! ✌️ 여행 관련 질문이 있으시면 편하게 말씀해주세요~' },
+  { regex: /^(잘\s*가|바이|bye)\s*[!?.]?\s*$/i, response: '좋은 여행 되세요! 🛫 언제든 다시 찾아주세요~' },
+];
+
 async function handle(message) {
+  // Quick pattern match first (no DB call)
+  const trimmed = message.trim();
+  for (const p of QUICK_PATTERNS) {
+    if (p.regex.test(trimmed)) {
+      return { directAnswer: true, response: p.response, source: 'quick', city: null, category: 'greeting' };
+    }
+  }
+
   // 여행 계획/일정 생성 요청은 직접 응답 대상이 아님
   if (/여행|계획|일정|코스|설계|짜줘/.test(message)) return null;
 

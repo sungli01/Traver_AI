@@ -83,7 +83,7 @@ app.post('/api/chat', async (req, res) => {
       const userRes = await db.query('SELECT plan FROM users WHERE id = $1', [authUserId]);
       userPlan = userRes.rows[0]?.plan || 'free';
       const limit = PLAN_LIMITS[userPlan]?.chat;
-      if (limit !== Infinity) {
+      if (limit !== undefined && limit !== Infinity) {
         const month = new Date().toISOString().slice(0, 7);
         const usageRes = await db.query(
           'SELECT COUNT(*) as cnt FROM usage_logs WHERE user_id = $1 AND action = $2 AND month = $3',
@@ -91,10 +91,17 @@ app.post('/api/chat', async (req, res) => {
         );
         const used = parseInt(usageRes.rows[0].cnt);
         if (used >= limit) {
-          return res.status(403).json({ error: 'plan_limit', limit, used, plan: userPlan, upgrade: true });
+          return res.status(403).json({
+            error: 'plan_limit',
+            message: `이번 달 무료 상담 횟수(${limit}회)를 모두 사용했습니다.`,
+            limit, used, plan: userPlan, upgrade: true
+          });
         }
       }
-    } catch { /* unauthenticated chat allowed */ }
+    } catch (authErr) {
+      // Token verification failed — treat as unauthenticated
+      console.warn('[Chat] Auth check failed:', authErr.message);
+    }
   }
 
   // Manage session goals
@@ -234,13 +241,25 @@ app.get('/api/cities', async (req, res) => {
 app.get('/api/city/:cityName', async (req, res) => {
   try {
     const { cityName } = req.params;
-    const [cityInfo, places, routes, events, rates] = await Promise.all([
+    const [cityInfo, places, routes, rates] = await Promise.all([
       db.query('SELECT * FROM city_info WHERE city ILIKE $1', [cityName]),
       db.query('SELECT * FROM places WHERE city ILIKE $1 ORDER BY trust_score DESC, rating DESC', [cityName]),
       db.query('SELECT * FROM routes WHERE from_city ILIKE $1 OR to_city ILIKE $1 ORDER BY cost_krw ASC NULLS LAST', [cityName]),
-      db.query('SELECT * FROM events WHERE city ILIKE $1 ORDER BY start_date ASC NULLS LAST', [cityName]),
       db.query('SELECT * FROM exchange_rates'),
     ]);
+
+    // Events query with fallback (start_date column may not exist)
+    let events = { rows: [] };
+    try {
+      // Try to detect actual columns
+      const colRes = await db.query("SELECT column_name FROM information_schema.columns WHERE table_name = 'events' AND column_name IN ('start_date','event_date','date','created_at')");
+      const cols = colRes.rows.map(r => r.column_name);
+      const orderCol = cols.includes('start_date') ? 'start_date' : cols.includes('event_date') ? 'event_date' : cols.includes('date') ? 'date' : 'created_at';
+      events = await db.query(`SELECT * FROM events WHERE city ILIKE $1 ORDER BY ${orderCol} ASC NULLS LAST`, [cityName]);
+    } catch (e) {
+      console.warn('[API] events query fallback:', e.message);
+      try { events = await db.query('SELECT * FROM events WHERE city ILIKE $1', [cityName]); } catch (_) {}
+    }
 
     const info = cityInfo.rows[0] || null;
     const country = info?.country || (places.rows[0]?.country) || null;
@@ -350,6 +369,25 @@ function authMiddleware(req, res, next) {
   }
 }
 
+// ─── Admin Middleware ───
+function adminMiddleware(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header) return res.status(401).json({ error: '인증이 필요합니다' });
+  const token = header.replace('Bearer ', '');
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.userId = decoded.userId;
+    // Check admin role
+    db.query('SELECT role FROM users WHERE id = $1', [decoded.userId]).then(result => {
+      const role = result.rows[0]?.role || 'user';
+      if (role !== 'admin') return res.status(403).json({ error: '관리자 권한이 필요합니다' });
+      next();
+    }).catch(() => res.status(500).json({ error: '서버 오류' }));
+  } catch {
+    return res.status(401).json({ error: '유효하지 않은 토큰입니다' });
+  }
+}
+
 // ─── Plan Limit Middleware ───
 function planLimitMiddleware(action) {
   return async (req, res, next) => {
@@ -380,10 +418,10 @@ function planLimitMiddleware(action) {
         });
       }
       req.usageUsed = used;
-      next();
+      return next();
     } catch (err) {
       console.error('[PlanLimit] error:', err.message);
-      next(); // fail open
+      return next(); // fail open
     }
   };
 }
@@ -622,7 +660,7 @@ app.post('/api/user/plan', authMiddleware, async (req, res) => {
 });
 
 // ─── Admin Endpoints ───
-app.get('/api/admin/users', async (req, res) => {
+app.get('/api/admin/users', adminMiddleware, async (req, res) => {
   try {
     const result = await db.query('SELECT id, email, name, created_at FROM users ORDER BY created_at DESC');
     res.json({ users: result.rows });
@@ -632,12 +670,12 @@ app.get('/api/admin/users', async (req, res) => {
   }
 });
 
-app.get('/api/admin/sessions', (req, res) => {
+app.get('/api/admin/sessions', adminMiddleware, (req, res) => {
   res.json({ activeSessions: sessionGoals.size });
 });
 
 // ─── Admin Stats Endpoints ───
-app.get('/api/admin/stats/daily', async (req, res) => {
+app.get('/api/admin/stats/daily', adminMiddleware, async (req, res) => {
   try {
     const signups = await db.query(`
       SELECT DATE(created_at) as date, COUNT(*) as count
@@ -658,7 +696,7 @@ app.get('/api/admin/stats/daily', async (req, res) => {
   }
 });
 
-app.get('/api/admin/stats/destinations', async (req, res) => {
+app.get('/api/admin/stats/destinations', adminMiddleware, async (req, res) => {
   try {
     const result = await db.query(`
       SELECT destination_city as city, COUNT(*) as count
@@ -673,7 +711,7 @@ app.get('/api/admin/stats/destinations', async (req, res) => {
   }
 });
 
-app.get('/api/admin/stats/revenue', async (req, res) => {
+app.get('/api/admin/stats/revenue', adminMiddleware, async (req, res) => {
   try {
     const userCount = await db.query('SELECT COUNT(*) as count FROM users');
     const total = parseInt(userCount.rows[0].count) || 0;
@@ -689,7 +727,7 @@ app.get('/api/admin/stats/revenue', async (req, res) => {
   }
 });
 
-app.get('/api/admin/stats/funnel', async (req, res) => {
+app.get('/api/admin/stats/funnel', adminMiddleware, async (req, res) => {
   try {
     const [signups, firstChat, itinerary, confirmed, revisit] = await Promise.all([
       db.query("SELECT COUNT(*) as count FROM users"),
@@ -714,7 +752,7 @@ app.get('/api/admin/stats/funnel', async (req, res) => {
 });
 
 // ─── Token Usage Stats ───
-app.get('/api/admin/stats/token-usage', async (req, res) => {
+app.get('/api/admin/stats/token-usage', adminMiddleware, async (req, res) => {
   try {
     const [bySource, daily, totalTokens] = await Promise.all([
       db.query(`
@@ -752,7 +790,7 @@ app.get('/api/admin/stats/token-usage', async (req, res) => {
   }
 });
 
-app.get('/api/admin/stats/activity', async (req, res) => {
+app.get('/api/admin/stats/activity', adminMiddleware, async (req, res) => {
   try {
     const result = await db.query(`
       SELECT EXTRACT(HOUR FROM created_at)::int as hour, EXTRACT(DOW FROM created_at)::int as dow, COUNT(*) as count
@@ -952,6 +990,79 @@ app.post('/api/team/invite', authMiddleware, async (req, res) => {
   }
 });
 
+// ─── Trip Sharing Endpoints ───
+app.post('/api/trips/:tripId/share', authMiddleware, async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    const { email, permission } = req.body;
+    if (!email) return res.status(400).json({ error: '공유할 이메일을 입력해주세요' });
+
+    const userRes = await db.query('SELECT plan FROM users WHERE id = $1', [req.userId]);
+    const plan = userRes.rows[0]?.plan || 'free';
+    const maxShares = plan === 'business' ? Infinity : plan === 'pro' ? 3 : 0;
+    if (maxShares === 0) return res.status(403).json({ error: '팀 공유는 Pro 이상 플랜에서 사용 가능합니다' });
+
+    const countRes = await db.query('SELECT COUNT(*) as cnt FROM team_shares WHERE trip_id = $1 AND owner_id = $2', [tripId, req.userId]);
+    if (parseInt(countRes.rows[0].cnt) >= maxShares) {
+      return res.status(403).json({ error: `${plan} 플랜의 공유 인원 한도(${maxShares}명)에 도달했습니다` });
+    }
+
+    const memberRes = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    const sharedWithId = memberRes.rows[0]?.id || null;
+
+    await db.query(
+      'INSERT INTO team_shares (trip_id, owner_id, shared_with_email, shared_with_id, permission) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING',
+      [tripId, req.userId, email, sharedWithId, permission || 'view']
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Share] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/trips/:tripId/shared', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT ts.id, ts.shared_with_email, ts.shared_with_id, ts.permission, ts.created_at, u.name as shared_with_name
+       FROM team_shares ts LEFT JOIN users u ON ts.shared_with_id = u.id
+       WHERE ts.trip_id = $1 AND ts.owner_id = $2 ORDER BY ts.created_at DESC`,
+      [req.params.tripId, req.userId]
+    );
+    res.json({ members: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/trips/:tripId/share/:shareId', authMiddleware, async (req, res) => {
+  try {
+    await db.query('DELETE FROM team_shares WHERE id = $1 AND owner_id = $2', [req.params.shareId, req.userId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/shared-trips', authMiddleware, async (req, res) => {
+  try {
+    const userEmail = await db.query('SELECT email FROM users WHERE id = $1', [req.userId]);
+    const email = userEmail.rows[0]?.email;
+    if (!email) return res.json({ trips: [] });
+
+    const result = await db.query(
+      `SELECT ts.trip_id, ts.permission, ts.created_at, u.name as owner_name, u.email as owner_email
+       FROM team_shares ts JOIN users u ON ts.owner_id = u.id
+       WHERE ts.shared_with_email = $1 OR ts.shared_with_id = $2
+       ORDER BY ts.created_at DESC`,
+      [email, req.userId]
+    );
+    res.json({ trips: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.delete('/api/team/:id', authMiddleware, async (req, res) => {
   try {
     await db.query('DELETE FROM team_members WHERE id =  AND owner_id = ', [req.params.id, req.userId]);
@@ -983,6 +1094,10 @@ async function initDB() {
       await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS oauth_id VARCHAR(255)`);
       // Allow null password for OAuth users
       await db.query(`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL`).catch(() => {});
+      // Role column for admin access
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user'`);
+      // Set first user as admin
+      await db.query(`UPDATE users SET role = 'admin' WHERE id = 1 AND role = 'user'`).catch(() => {});
       // Plan & usage columns
       await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS plan VARCHAR(20) DEFAULT 'free'`);
       await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMP`);
@@ -1020,7 +1135,19 @@ async function initDB() {
           UNIQUE(owner_id, member_email)
         )
       `);
-      console.log('[DB] plan & usage_logs & api_keys & team_members ready');
+      // Team shares table for trip sharing
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS team_shares (
+          id SERIAL PRIMARY KEY,
+          trip_id TEXT NOT NULL,
+          owner_id INTEGER REFERENCES users(id),
+          shared_with_email VARCHAR(255),
+          shared_with_id INTEGER REFERENCES users(id),
+          permission VARCHAR(20) DEFAULT 'view',
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      console.log('[DB] plan & usage_logs & api_keys & team_members & team_shares ready');
       console.log('[DB] users table ready (with OAuth columns)');
 
       // Price tracking tables
