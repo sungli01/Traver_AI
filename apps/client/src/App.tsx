@@ -18,6 +18,8 @@ import OAuthCallback from "@/pages/OAuthCallback";
 import SharedTrip from "@/pages/SharedTrip";
 import Admin from "@/pages/Admin";
 import Pricing from "@/pages/Pricing";
+import CityGuide from "@/pages/CityGuide";
+import CityDetail from "@/pages/CityDetail";
 
 /**
  * @description AI 멀티에이전트 여행 서비스 - TravelAgent AI
@@ -113,6 +115,10 @@ const App = () => {
                 path={ROUTE_PATHS.PRICING} 
                 element={<Pricing />} 
               />
+
+              {/* 도시 가이드 */}
+              <Route path={ROUTE_PATHS.CITIES} element={<CityGuide />} />
+              <Route path={ROUTE_PATHS.CITY_DETAIL} element={<CityDetail />} />
 
               {/* 공유받은 일정 import */}
               <Route 

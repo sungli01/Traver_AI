@@ -902,6 +902,15 @@ async function initDB() {
       `);
       console.log('[DB] city_info table ready');
 
+      // Seed city_info if empty
+      const cityCount = await db.query('SELECT COUNT(*) as c FROM city_info');
+      if (parseInt(cityCount.rows[0].c) === 0) {
+        try {
+          const { seed: seedCityInfo } = require('./seed-city-info');
+          await seedCityInfo();
+        } catch(e) { console.error('[DB] city_info seed error:', e.message); }
+      }
+
       // Seed demo data if tables are empty
       const chatCount = await db.query('SELECT COUNT(*) as c FROM chat_logs');
       if (parseInt(chatCount.rows[0].c) === 0) {

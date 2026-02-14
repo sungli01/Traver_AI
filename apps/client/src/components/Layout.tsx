@@ -39,6 +39,7 @@ const NAV_ITEMS = [
   { name: '결제 관리', path: ROUTE_PATHS.PAYMENT, icon: CreditCard },
   { name: '보안 센터', path: ROUTE_PATHS.SECURITY, icon: Shield },
   { name: '블록체인', path: ROUTE_PATHS.BLOCKCHAIN, icon: Blocks },
+  { name: '도시 가이드', path: ROUTE_PATHS.CITIES, icon: Globe },
   { name: '요금제', path: ROUTE_PATHS.PRICING, icon: CreditCardIcon },
   { name: '관리자', path: ROUTE_PATHS.ADMIN, icon: Settings2 },
 ];
