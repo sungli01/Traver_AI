@@ -163,7 +163,7 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
 
       const response = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ message: messageToSend, context: contextMsgs, type: msgType, sessionId: sessionIdRef.current, goals: sessionGoals }),
       });
 

@@ -114,7 +114,7 @@ export function TravelChatWindow() {
 
       const response = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json',  },
+        headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
         body: JSON.stringify({ message: textToSend, context: contextMsgs }),
       });
 
