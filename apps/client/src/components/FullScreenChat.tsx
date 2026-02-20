@@ -375,7 +375,7 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
     setEditChatLoading(true);
 
     // Detect if this is a modification request or just a chat question
-    const isModifyRequest = /수정|변경|바꿔|추가|삭제|제거|대신|다른|빼고|넣어|옮겨|교체/.test(trimmedText);
+    const isModifyRequest = /수정|변경|바꿔|추가|삭제|제거|대신|다른|빼고|넣어|옮겨|교체|찾아|찾자|줄여|낮춰|올려|싸게|비싸게|저렴|업그레이드|다운그레이드|대체|바꿔줘|변경해|추가해|삭제해|빼줘/.test(trimmedText);
 
     // Build compact context from current schedule
     const compactSchedule = scheduleData.days.map(d =>
@@ -402,8 +402,12 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
 
       if (!res.ok) {
         console.error('[ScheduleChat] API error:', res.status, res.statusText);
-        setActivityMessages(prev => [...prev, { role: 'assistant', content: `⚠️ 서버 오류 (${res.status}). 잠시 후 다시 시도해주세요.` }]);
-        setActivityLoading(false);
+        let errMsg = `⚠️ 서버 오류 (${res.status}). 잠시 후 다시 시도해주세요.`;
+        try {
+          const errData = await res.json();
+          if (errData.message) errMsg = `⚠️ ${errData.message}`;
+        } catch (_) {}
+        setEditChatMessages(prev => [...prev, { role: 'assistant', content: errMsg }]);
         return;
       }
 
@@ -440,7 +444,10 @@ export function FullScreenChat({ onBack, initialMessage, onScheduleSaved }: Full
         setEditChatMessages(prev => [...prev, { role: 'assistant', content: displayReply || reply.substring(0, 200) }]);
       }
     } catch (e) {
-      setEditChatMessages(prev => [...prev, { role: 'assistant', content: '오류가 발생했습니다. 다시 시도해주세요.' }]);
+      console.error('[EditChat] fetch error:', e);
+      const errMsg = e instanceof Error ? e.message : String(e);
+      const isTimeout = errMsg.includes('timeout') || errMsg.includes('abort');
+      setEditChatMessages(prev => [...prev, { role: 'assistant', content: isTimeout ? '⏳ 응답 시간이 초과됐습니다. AI가 복잡한 일정을 처리 중이니 다시 시도해주세요.' : '⚠️ 연결 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' }]);
     } finally {
       setEditChatLoading(false);
     }

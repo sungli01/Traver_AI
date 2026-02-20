@@ -67,7 +67,7 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/api/chat', async (req, res) => {
-  const { message, context, sessionId, goals: clientGoals } = req.body;
+  const { message, context, sessionId, goals: clientGoals, type: clientType } = req.body;
   if (!message) {
     return res.status(400).json({ error: 'Message is required' });
   }
@@ -121,7 +121,7 @@ app.post('/api/chat', async (req, res) => {
   sessionGoals.set(sid, goals);
 
   // Priority context for Pro/Business — pass plan to agent for prompt differentiation
-  const extraContext = { plan: userPlan, priority: userPlan !== 'free', planLevel: userPlan };
+  const extraContext = { plan: userPlan, priority: userPlan !== 'free', planLevel: userPlan, ...(clientType ? { type: clientType } : {}) };
 
   // ─── 토큰 절약 파이프라인 (비스트리밍 일반 질문에만 적용) ───
   const wantStream = (req.headers.accept || '').includes('text/event-stream');
