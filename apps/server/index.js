@@ -202,10 +202,10 @@ app.post('/api/chat', async (req, res) => {
 
       let finalResponse = response;
       if (userPlan === 'free' && response.length > 100) {
-        finalResponse += '
+        finalResponse += `
 
 ---
-💡 *Pro로 업그레이드하면 현지인만 아는 숨겨진 맛집, 구체적인 가격 정보, 시간대별 추천 등 더 상세한 정보를 받을 수 있어요!*';
+💡 *Pro로 업그레이드하면 현지인만 아는 숨겨진 맛집, 구체적인 가격 정보, 시간대별 추천 등 더 상세한 정보를 받을 수 있어요!*`;
       }
 
       res.json({ reply: finalResponse, goals: sessionGoals.get(sid), plan: userPlan });
